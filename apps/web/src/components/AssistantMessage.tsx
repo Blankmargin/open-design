@@ -32,7 +32,7 @@ import {
   splitOnQuestionForms,
   type QuestionForm,
 } from "../artifacts/question-form";
-import { stripArtifact } from "../artifacts/strip";
+import { stripRenderableArtifact } from "../artifacts/strip";
 import { QuestionFormView, parseSubmittedAnswers } from "./QuestionForm";
 import {
   getPluginFolderCandidates,
@@ -1679,7 +1679,7 @@ function ProseBlock({
   onSubmitForm: (formId: string, text: string) => void;
   onRequestOpenFile?: (name: string) => void;
 }) {
-  const cleaned = useMemo(() => stripArtifact(text), [text]);
+  const cleaned = useMemo(() => stripRenderableArtifact(text), [text]);
   const segments = useMemo(() => splitOnQuestionForms(cleaned), [cleaned]);
   // Route relative file-link clicks (`template.html`, `subdir/hero.html`)
   // through the workspace tab opener. Without this, Electron's window-open

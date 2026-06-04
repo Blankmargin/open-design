@@ -10,6 +10,18 @@ function collect(input: string): ArtifactEvent[] {
   return events;
 }
 
+function collectWithRawHtmlFallback(input: string): ArtifactEvent[] {
+  const parser = createArtifactParser({
+    rawHtmlFallback: true,
+    rawHtmlIdentifier: 'generated-html',
+    rawHtmlTitle: 'Generated HTML',
+  });
+  const events: ArtifactEvent[] = [];
+  for (const e of parser.feed(input)) events.push(e);
+  for (const e of parser.flush()) events.push(e);
+  return events;
+}
+
 describe('createArtifactParser', () => {
   it('parses a real artifact tag in prose', () => {
     const events = collect(
@@ -24,6 +36,67 @@ describe('createArtifactParser', () => {
       .map((e) => e.delta)
       .join('');
     expect(trailing).toContain('Done.');
+  });
+
+  it('keeps raw HTML as text by default', () => {
+    const html = '<!doctype html><html><body><h1>Dashboard</h1></body></html>';
+    const events = collect(html);
+
+    expect(events.find((e) => e.type === 'artifact:start')).toBeUndefined();
+    expect(
+      events
+        .filter((e): e is Extract<ArtifactEvent, { type: 'text' }> => e.type === 'text')
+        .map((e) => e.delta)
+        .join(''),
+    ).toBe(html);
+  });
+
+  it('treats direct full-document HTML as an artifact when raw fallback is enabled', () => {
+    const html = '<!doctype html><html><body><h1>Dashboard</h1></body></html>';
+    const events = collectWithRawHtmlFallback(html);
+
+    expect(events.find((e) => e.type === 'artifact:start')).toMatchObject({
+      identifier: 'generated-html',
+      artifactType: 'text/html',
+      title: 'Generated HTML',
+    });
+    expect(events.find((e) => e.type === 'artifact:end')).toMatchObject({
+      identifier: 'generated-html',
+      fullContent: html,
+    });
+  });
+
+  it('holds raw HTML fallback across split doctype chunks', () => {
+    const parser = createArtifactParser({ rawHtmlFallback: true });
+    const events: ArtifactEvent[] = [];
+    for (const chunk of ['<!doc', 'type html><html><body>Split</body></html>']) {
+      for (const e of parser.feed(chunk)) events.push(e);
+    }
+    for (const e of parser.flush()) events.push(e);
+
+    expect(events.find((e) => e.type === 'artifact:start')).toMatchObject({
+      artifactType: 'text/html',
+    });
+    expect(events.find((e) => e.type === 'artifact:end')).toMatchObject({
+      fullContent: '<!doctype html><html><body>Split</body></html>',
+    });
+  });
+
+  it('does not start raw HTML fallback after prior prose already flushed', () => {
+    const parser = createArtifactParser({ rawHtmlFallback: true });
+    const events: ArtifactEvent[] = [];
+    for (const chunk of ['Here is the page:\n', '<!doctype html><html><body>Later</body></html>']) {
+      for (const e of parser.feed(chunk)) events.push(e);
+    }
+    for (const e of parser.flush()) events.push(e);
+
+    expect(events.find((e) => e.type === 'artifact:start')).toBeUndefined();
+    expect(
+      events
+        .filter((e): e is Extract<ArtifactEvent, { type: 'text' }> => e.type === 'text')
+        .map((e) => e.delta)
+        .join(''),
+    ).toContain('<!doctype html>');
   });
 
   it('does not enter artifact mode for a tag inside inline backticks', () => {

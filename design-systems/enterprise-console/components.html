@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enterprise Console — reference components</title>
+  <meta name="description" content="Reference fixture for the Enterprise Console design system: dense admin shell, filter forms, tables, status tags, KPI cards, top tabs, and dialogs." />
+  <style>
+    :root {
+      --bg: #f3f5f8;
+      --surface: #ffffff;
+      --surface-warm: #f8fafd;
+      --fg: #172033;
+      --fg-2: #39465f;
+      --muted: #7e8799;
+      --meta: #9aa4b5;
+      --border: #dce3ef;
+      --border-soft: #e9eef6;
+      --accent: #6257f2;
+      --accent-on: #ffffff;
+      --accent-hover: #756aff;
+      --accent-active: #5147d9;
+      --success: #18b785;
+      --warn: #ff9f3d;
+      --danger: #f04444;
+      --font-display: "Inter", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-body: "Inter", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+      --text-xs: 11px;
+      --text-sm: 12px;
+      --text-base: 13px;
+      --text-lg: 14px;
+      --text-xl: 16px;
+      --text-2xl: 18px;
+      --text-3xl: 24px;
+      --text-4xl: 32px;
+      --leading-body: 1.45;
+      --leading-tight: 1.22;
+      --tracking-display: 0;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --section-y-desktop: 16px;
+      --section-y-tablet: 14px;
+      --section-y-phone: 12px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 8px 24px color-mix(in oklab, var(--fg), transparent 88%);
+      --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 76%);
+      --motion-fast: 140ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.23, 1, 0.32, 1);
+      --container-max: 1440px;
+      --container-gutter-desktop: 16px;
+      --container-gutter-tablet: 14px;
+      --container-gutter-phone: 12px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-body);
+    }
+    button, input, select { font: inherit; }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 212px minmax(0, 1fr);
+      background: var(--bg);
+    }
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border-soft);
+      padding: var(--space-3) var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 32px;
+      font-weight: 700;
+      color: #0d4778;
+    }
+    .brand-mark {
+      width: 28px;
+      height: 18px;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(135deg, #00a6d6 0%, #2f70e8 52%, #ff9f3d 53%, #ff9f3d 100%);
+    }
+    .search-field {
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 0 var(--space-3);
+      color: var(--fg);
+      background: var(--surface);
+      outline: 0;
+      width: 100%;
+    }
+    .search-field::placeholder { color: var(--meta); }
+    .search-field:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); }
+    .nav-group-label {
+      margin: var(--space-2) 0 var(--space-1);
+      color: var(--meta);
+      font-size: var(--text-xs);
+    }
+    .nav-list { display: grid; gap: 2px; }
+    .nav-item {
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-md);
+      color: var(--fg-2);
+      text-decoration: none;
+      font-size: var(--text-sm);
+    }
+    .nav-item:hover { background: var(--surface-warm); }
+    .nav-item.is-active {
+      background: color-mix(in oklab, var(--accent), white 88%);
+      color: var(--fg);
+      font-weight: 600;
+    }
+    .nav-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid currentColor;
+      opacity: .72;
+    }
+
+    .main { min-width: 0; }
+    .topbar {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: 0 var(--space-4);
+      background: #e9eefc;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .top-tabs {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      overflow: hidden;
+    }
+    .top-tab {
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 0 var(--space-3);
+      border-radius: var(--radius-md);
+      color: var(--fg-2);
+      font-size: var(--text-sm);
+      border: 1px solid transparent;
+      background: transparent;
+      white-space: nowrap;
+    }
+    .top-tab.is-active {
+      background: var(--surface);
+      border-color: var(--border-soft);
+      color: var(--fg);
+      box-shadow: 0 1px 2px color-mix(in oklab, var(--fg), transparent 94%);
+    }
+    .top-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--fg-2);
+      font-size: var(--text-xs);
+      white-space: nowrap;
+    }
+    .icon-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: var(--radius-pill);
+      border: 0;
+      background: var(--surface);
+      color: var(--accent);
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .workspace {
+      padding: var(--space-4);
+      display: grid;
+      gap: var(--space-4);
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      box-shadow: var(--elev-flat);
+    }
+    .panel-title {
+      margin: 0 0 var(--space-3);
+      font-size: var(--text-xl);
+      line-height: var(--leading-tight);
+      font-weight: 700;
+    }
+    .panel-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+    .kpi-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      min-height: 64px;
+    }
+    .kpi-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-md);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 700;
+      background: var(--accent);
+    }
+    .kpi-icon.is-cyan { background: #0095d9; }
+    .kpi-icon.is-teal { background: #00a78f; }
+    .kpi-icon.is-red { background: var(--danger); }
+    .kpi-icon.is-orange { background: var(--warn); }
+    .kpi-label {
+      color: var(--fg-2);
+      font-size: var(--text-xs);
+      line-height: 1.25;
+    }
+    .kpi-value {
+      margin-top: 2px;
+      color: var(--accent);
+      font: 700 var(--text-lg) / 1 var(--font-mono);
+    }
+
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      gap: var(--space-3);
+      align-items: end;
+      margin-bottom: var(--space-3);
+    }
+    .field {
+      display: grid;
+      gap: var(--space-1);
+      color: var(--fg-2);
+      font-size: var(--text-xs);
+    }
+    .control {
+      height: 32px;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--fg);
+      padding: 0 var(--space-3);
+      outline: 0;
+    }
+    .control::placeholder { color: var(--meta); }
+    .control:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); }
+    .form-actions {
+      display: flex;
+      gap: var(--space-2);
+      justify-content: flex-end;
+    }
+
+    .btn {
+      height: 32px;
+      min-width: 76px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg-2);
+      padding: 0 var(--space-4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+      cursor: default;
+    }
+    .btn:hover { border-color: color-mix(in oklab, var(--accent), white 52%); color: var(--accent); }
+    .btn:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-on);
+    }
+    .btn-primary:hover { background: var(--accent-hover); color: var(--accent-on); }
+    .btn-primary:active { background: var(--accent-active); }
+    .btn-success { background: var(--success); border-color: var(--success); color: white; }
+    .btn-warning { background: var(--warn); border-color: var(--warn); color: white; }
+    .btn-danger { background: var(--danger); border-color: var(--danger); color: white; }
+    .btn-text {
+      min-width: 0;
+      height: auto;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      border: 1px solid var(--border-soft);
+      font-size: var(--text-sm);
+    }
+    .data-table th {
+      height: 34px;
+      background: var(--surface-warm);
+      color: var(--muted);
+      font-weight: 500;
+      text-align: left;
+      padding: 0 var(--space-3);
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .data-table td {
+      height: 36px;
+      padding: 0 var(--space-3);
+      color: var(--fg);
+      border-bottom: 1px solid var(--border-soft);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data-table tr:hover td { background: color-mix(in oklab, var(--accent), white 96%); }
+    .table-actions {
+      display: inline-flex;
+      gap: var(--space-3);
+      color: var(--accent);
+      font-size: var(--text-sm);
+    }
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      height: 20px;
+      padding: 0 var(--space-2);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      line-height: 1;
+      background: color-mix(in oklab, var(--accent), white 88%);
+      color: var(--accent);
+    }
+    .status-tag.is-success {
+      background: color-mix(in oklab, var(--success), white 86%);
+      color: #0f8c66;
+    }
+    .status-tag.is-warning {
+      background: color-mix(in oklab, var(--warn), white 84%);
+      color: #c96e09;
+    }
+    .status-tag.is-danger {
+      background: color-mix(in oklab, var(--danger), white 86%);
+      color: #c22b2b;
+    }
+    .pagination {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-3);
+      color: var(--muted);
+      font-size: var(--text-sm);
+    }
+    .page {
+      min-width: 24px;
+      height: 24px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--fg-2);
+      display: inline-grid;
+      place-items: center;
+    }
+    .page.is-active { background: var(--accent); border-color: var(--accent); color: white; }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-4);
+    }
+    .chart-card {
+      min-height: 230px;
+      display: grid;
+      align-content: start;
+      gap: var(--space-4);
+    }
+    .donut {
+      width: 148px;
+      height: 148px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent) 0 72%, #c271de 72% 90%, #00a78f 90% 100%);
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    .donut::after {
+      content: "";
+      width: 92px;
+      height: 92px;
+      border-radius: 50%;
+      background: var(--surface);
+      position: absolute;
+    }
+    .donut-label {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      font-size: var(--text-sm);
+      color: var(--fg-2);
+      max-width: 76px;
+      line-height: 1.25;
+    }
+    .legend-row {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-4);
+      color: var(--muted);
+      font-size: var(--text-xs);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+      margin-right: var(--space-1);
+      background: var(--accent);
+    }
+
+    .alert {
+      border-radius: var(--radius-md);
+      border: 1px solid color-mix(in oklab, var(--warn), white 68%);
+      background: color-mix(in oklab, var(--warn), white 90%);
+      color: #8a520b;
+      padding: var(--space-3) var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .modal {
+      width: min(440px, 100%);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-soft);
+      background: var(--surface);
+      box-shadow: var(--elev-raised);
+      padding: var(--space-4);
+    }
+    .modal-title {
+      margin: 0 0 var(--space-3);
+      font-size: var(--text-xl);
+      font-weight: 700;
+    }
+    .modal-body {
+      display: grid;
+      gap: var(--space-3);
+      color: var(--fg-2);
+    }
+    .modal-footer {
+      margin-top: var(--space-4);
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-2);
+    }
+
+    @media (max-width: 980px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .kpi-strip, .panel-grid, .filter-grid { grid-template-columns: 1fr; }
+      .topbar { overflow: hidden; }
+      .workspace { padding: var(--container-gutter-tablet); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark"></span><span>SeeLink+</span></div>
+      <input class="search-field" placeholder="Search by name or number..." />
+      <div class="nav-group-label">Home</div>
+      <nav class="nav-list" aria-label="Main navigation">
+        <a class="nav-item" href="#"><span class="nav-icon"></span>Business Data Monitoring</a>
+        <a class="nav-item is-active" href="#"><span class="nav-icon"></span>O&amp;M Monitoring</a>
+        <a class="nav-item" href="#"><span class="nav-icon"></span>View Library Statistics</a>
+      </nav>
+      <div class="nav-group-label">Functions</div>
+      <nav class="nav-list" aria-label="Function navigation">
+        <a class="nav-item" href="#"><span class="nav-icon"></span>System management</a>
+        <a class="nav-item" href="#"><span class="nav-icon"></span>User center</a>
+        <a class="nav-item" href="#"><span class="nav-icon"></span>Operations management</a>
+        <a class="nav-item" href="#"><span class="nav-icon"></span>Network management</a>
+        <a class="nav-item" href="#"><span class="nav-icon"></span>Alarm management</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="top-tabs">
+          <button class="top-tab is-active">O&amp;M Monitoring ×</button>
+          <button class="top-tab">Business Data Monitoring ×</button>
+          <button class="top-tab">Deployment task management ×</button>
+          <button class="top-tab">Event center ×</button>
+        </div>
+        <div class="top-actions">
+          <button class="icon-btn" aria-label="Settings">•</button>
+          <button class="icon-btn" aria-label="Notifications">!</button>
+          <span>2023/12/17<br />14:36:00</span>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <section class="panel kpi-strip" aria-label="Data overview">
+          <div class="kpi-card">
+            <span class="kpi-icon">◎</span>
+            <span><span class="kpi-label">Number of<br />access devices</span><span class="kpi-value">31022</span></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-icon">♙</span>
+            <span><span class="kpi-label">Total number of<br />customers</span><span class="kpi-value">52396</span></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-icon is-cyan">▣</span>
+            <span><span class="kpi-label">Total number of<br />manual orders</span><span class="kpi-value">2792</span></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-icon is-teal">▤</span>
+            <span><span class="kpi-label">Total number of<br />work orders</span><span class="kpi-value">459</span></span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-icon is-red">▥</span>
+            <span><span class="kpi-label">Total number of<br />business opportunities</span><span class="kpi-value">172</span></span>
+          </div>
+        </section>
+
+        <section class="panel-grid" aria-label="Dashboard panels">
+          <article class="panel chart-card">
+            <h2 class="panel-title">Data statistics</h2>
+            <div class="donut"><span class="donut-label">Number of businesses opened</span></div>
+            <div class="legend-row"><span><i class="legend-dot"></i>Access</span><span><i class="legend-dot" style="background:#c271de"></i>Storage</span><span><i class="legend-dot" style="background:#00a78f"></i>Image</span></div>
+          </article>
+          <article class="panel chart-card">
+            <h2 class="panel-title">Hot List</h2>
+            <table class="data-table">
+              <thead><tr><th>No.</th><th>Algorithm name</th><th>Openings</th></tr></thead>
+              <tbody>
+                <tr><td>01</td><td>pan-targeting</td><td><span class="status-tag">83</span></td></tr>
+                <tr><td>02</td><td>Regional invasions</td><td><span class="status-tag">70</span></td></tr>
+                <tr><td>03</td><td>Face Attribute Analysis</td><td><span class="status-tag">54</span></td></tr>
+              </tbody>
+            </table>
+          </article>
+          <article class="panel">
+            <h2 class="panel-title">Message Box</h2>
+            <div class="alert"><strong>Alert</strong><span>This is a description. Gotcha</span></div>
+            <div style="height: var(--space-4)"></div>
+            <div class="modal">
+              <h3 class="modal-title">New tags</h3>
+              <div class="modal-body">
+                <label class="field">Tag name<input class="control" placeholder="Please enter" /></label>
+              </div>
+              <div class="modal-footer"><button class="btn">Cancel</button><button class="btn btn-primary">Confirm</button></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="filter-grid">
+            <label class="field">Telephone<input class="control" placeholder="Please enter" /></label>
+            <label class="field">Results<select class="control"><option>Please choose</option></select></label>
+            <label class="field">Audit status<select class="control"><option>Please choose</option></select></label>
+            <label class="field">Log type<select class="control"><option>Please choose</option></select></label>
+            <label class="field">Operation start and end time<input class="control" placeholder="2025-01-08 11:43:35" /></label>
+            <div class="form-actions"><button class="btn btn-primary">Search</button><button class="btn">Reset</button><button class="btn btn-primary">Export</button></div>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Telephone</th><th>Log type</th><th>IP address</th><th>Results</th><th>Action time</th><th>Audit status</th><th>Operation</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>189****8692</td><td>Login</td><td>118.18,24.51</td><td><span class="status-tag is-success">Success</span></td><td>2025-01-08 11:43...</td><td><span class="status-tag is-success">Normal</span></td><td><span class="table-actions">In detail Audits</span></td></tr>
+              <tr><td>189****8692</td><td>Logout</td><td>118.18,24.51</td><td><span class="status-tag is-success">Success</span></td><td>2025-01-08 11:43...</td><td><span class="status-tag is-warning">Awaiting approval</span></td><td><span class="table-actions">In detail Audits</span></td></tr>
+              <tr><td>189****8692</td><td>Login</td><td>118.18,24.51</td><td><span class="status-tag is-success">Success</span></td><td>2025-01-08 11:43...</td><td><span class="status-tag is-danger">Abnormal</span></td><td><span class="table-actions">In detail Audits</span></td></tr>
+            </tbody>
+          </table>
+          <div class="pagination"><span>Total 101 data</span><span class="page is-active">1</span><span class="page">2</span><span class="page">3</span><span>...</span><span class="page">11</span><span>Skip to</span><span class="page">11</span><span>page</span></div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

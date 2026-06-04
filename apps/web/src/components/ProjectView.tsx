@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
-import { validateHtmlArtifact } from '../artifacts/validate';
+import { normalizeHtmlArtifactContent, validateHtmlArtifact } from '../artifacts/validate';
 import { createArtifactParser } from '../artifacts/parser';
 import { useI18n } from '../i18n';
 import { streamMessage } from '../providers/anthropic';
@@ -1148,9 +1148,12 @@ export function ProjectView({
         fileName = `${baseName}-${n}${ext}`;
         n += 1;
       }
+      const artifactContent = ext === '.html'
+        ? normalizeHtmlArtifactContent(art.html)
+        : art.html;
       if (ext === '.html') {
         const pointerTarget = resolveHtmlPointerArtifactTarget({
-          content: art.html,
+          content: artifactContent,
           candidateFileName: fileName,
           projectFiles: currentProjectFiles,
         });
@@ -1167,7 +1170,7 @@ export function ProjectView({
       // when only Edit-tool changes happened this turn. Without this guard,
       // such content lands as a phantom HTML file in the project panel.
       if (ext === '.html') {
-        const validation = validateHtmlArtifact(art.html);
+        const validation = validateHtmlArtifact(artifactContent);
         if (!validation.ok) {
           setError(`Refused to save artifact "${art.identifier || art.title || 'untitled'}": ${validation.reason}`);
           return;
@@ -1199,7 +1202,7 @@ export function ProjectView({
                 designSystemId: project.designSystemId,
               },
             });
-      const file = await writeProjectTextFile(project.id, fileName, art.html, {
+      const file = await writeProjectTextFile(project.id, fileName, artifactContent, {
         artifactManifest: manifest ?? undefined,
       });
       if (file) {
@@ -1980,7 +1983,11 @@ export function ProjectView({
           textBuffer.flush();
           persistMessageById(message.id, options);
         };
-        const parser = createArtifactParser();
+        const parser = createArtifactParser({
+          rawHtmlFallback: true,
+          rawHtmlIdentifier: 'generated-html',
+          rawHtmlTitle: 'Generated HTML',
+        });
         let parsedArtifact: Artifact | null = null;
         let liveHtml = '';
         let replayedContent = needsFullReplay ? '' : message.content;
@@ -2437,7 +2444,11 @@ export function ProjectView({
       // as download chips on the assistant message.
       const beforeFileNames = new Set(preTurnFileNames);
 
-      const parser = createArtifactParser();
+      const parser = createArtifactParser({
+        rawHtmlFallback: true,
+        rawHtmlIdentifier: 'generated-html',
+        rawHtmlTitle: 'Generated HTML',
+      });
       let parsedArtifact: Artifact | null = null;
       let liveHtml = '';
       let streamedText = '';

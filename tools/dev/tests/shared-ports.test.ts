@@ -102,6 +102,27 @@ describe("tools-dev shared ports", () => {
     ]);
   });
 
+  it("uses the requested host only for web port allocation", async () => {
+    const calls: Array<{ label: string; host: string | undefined }> = [];
+    const daemonPort = 45678;
+    const webPort = 45679;
+    const stubAllocate = async ({ host, label }: PortRequest = {}): Promise<PortAllocation> => {
+      calls.push({ host, label: label ?? "" });
+      return { port: label === "daemon" ? daemonPort : webPort, source: "dynamic" };
+    };
+
+    const options: { daemonPort?: string; host?: string; webPort?: string } = { host: "0.0.0.0" };
+
+    await ensureSharedPortsResolved([APP_KEYS.WEB, APP_KEYS.DAEMON], options, null, null, stubAllocate);
+
+    assert.equal(options.daemonPort, String(daemonPort));
+    assert.equal(options.webPort, String(webPort));
+    assert.deepEqual(calls, [
+      { host: "127.0.0.1", label: "daemon" },
+      { host: "0.0.0.0", label: "web" },
+    ]);
+  });
+
   it("does not allocate a daemon port when daemon is not starting", async () => {
     const options: { daemonPort?: string; webPort?: string } = {};
 

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "od-design-system-project/v1",
+  "id": "enterprise-console",
+  "name": "Enterprise Console",
+  "category": "Enterprise",
+  "description": "Dense SeeLink+ / MasterGo-style enterprise console for O&M dashboards, audit logs, business monitoring, and data-heavy internal tools.",
+  "source": {
+    "type": "local",
+    "path": "/Users/momocyann/Downloads/模板",
+    "importedAt": "2026-06-03T10:45:00.000+08:00"
+  },
+  "files": {
+    "design": "DESIGN.md",
+    "tokens": "tokens.css",
+    "components": "components.html"
+  },
+  "usage": "USAGE.md",
+  "componentsManifest": "components.manifest.json",
+  "importMode": "normalized",
+  "craft": {
+    "applies": [],
+    "suggested": [
+      "color",
+      "accessibility-baseline"
+    ],
+    "exemptions": []
+  },
+  "preview": {
+    "dir": "preview",
+    "pages": [
+      {
+        "path": "preview/app.html",
+        "role": "app",
+        "title": "Console App Preview"
+      },
+      {
+        "path": "preview/components.html",
+        "role": "components",
+        "title": "Component Preview"
+      },
+      {
+        "path": "preview/colors.html",
+        "role": "colors",
+        "title": "Colors"
+      },
+      {
+        "path": "preview/typography.html",
+        "role": "typography",
+        "title": "Typography"
+      },
+      {
+        "path": "preview/spacing.html",
+        "role": "spacing",
+        "title": "Spacing"
+      }
+    ]
+  },
+  "sourceFiles": {
+    "evidence": "source/evidence.md",
+    "tokens": "source/tokens.source.json"
+  }
+}

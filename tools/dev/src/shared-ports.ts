@@ -1,7 +1,7 @@
 import { allocatePort } from "@open-design/sidecar";
 import { APP_KEYS } from "@open-design/sidecar-proto";
 
-import { parsePortOption, type ToolDevAppName, type ToolDevOptions } from "./config.js";
+import { parseHostOption, parsePortOption, type ToolDevAppName, type ToolDevOptions } from "./config.js";
 
 type RunningUrlLookup = () => Promise<string | null | undefined>;
 type AllocatePortFn = typeof allocatePort;
@@ -15,12 +15,13 @@ function portFromUrl(url: string | null | undefined): number | null {
 
 export async function ensureSharedPortsResolved(
   targets: readonly ToolDevAppName[],
-  options: Pick<ToolDevOptions, "daemonPort" | "webPort">,
+  options: Pick<ToolDevOptions, "daemonPort" | "host" | "webPort">,
   runningWebUrl?: string | null,
   runningDaemonUrl?: string | null,
   allocate: AllocatePortFn = allocatePort,
 ): Promise<void> {
   if (!targets.includes(APP_KEYS.WEB)) return;
+  const host = parseHostOption(options.host);
   const daemonRequested = targets.includes(APP_KEYS.DAEMON);
   const reserved = new Set<number>();
   const webPort = parsePortOption(options.webPort, "--web-port");
@@ -51,7 +52,7 @@ export async function ensureSharedPortsResolved(
   }
 
   const { port } = await allocate({
-    host: "127.0.0.1",
+    host,
     label: "web",
     reserved,
   });
@@ -60,7 +61,7 @@ export async function ensureSharedPortsResolved(
 
 export async function resolveSharedPortsFromRunningState(
   targets: readonly ToolDevAppName[],
-  options: Pick<ToolDevOptions, "daemonPort" | "webPort">,
+  options: Pick<ToolDevOptions, "daemonPort" | "host" | "webPort">,
   urls: { daemonUrl?: RunningUrlLookup; webUrl?: RunningUrlLookup },
 ): Promise<void> {
   const runningDaemonUrl = targets.includes(APP_KEYS.DAEMON) ? ((await urls.daemonUrl?.()) ?? null) : null;

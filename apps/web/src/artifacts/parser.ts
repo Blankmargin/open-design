@@ -19,11 +19,25 @@ const CLOSE_TAG = '</artifact>';
 
 interface ParserState {
   inside: boolean;
+  rawHtmlInside: boolean;
+  rawHtmlStarted: boolean;
   buffer: string;
   identifier: string;
   artifactType: string;
   title: string;
   content: string;
+}
+
+interface ArtifactParserOptions {
+  /**
+   * BYOK/API models sometimes emit a complete HTML document directly instead
+   * of wrapping it in the OD <artifact> protocol. When enabled, treat a
+   * response whose first non-whitespace token is <!doctype html> or <html> as
+   * an HTML artifact at flush time.
+   */
+  rawHtmlFallback?: boolean;
+  rawHtmlIdentifier?: string;
+  rawHtmlTitle?: string;
 }
 
 function parseAttrs(raw: string): Record<string, string> {
@@ -158,9 +172,11 @@ function findOpenTag(buffer: string): OpenTagMatch {
   return { kind: 'none' };
 }
 
-export function createArtifactParser() {
+export function createArtifactParser(options: ArtifactParserOptions = {}) {
   const state: ParserState = {
     inside: false,
+    rawHtmlInside: false,
+    rawHtmlStarted: false,
     buffer: '',
     identifier: '',
     artifactType: '',
@@ -172,7 +188,50 @@ export function createArtifactParser() {
     state.buffer += delta;
 
     while (state.buffer.length > 0) {
+      if (state.rawHtmlInside) {
+        state.content += state.buffer;
+        yield { type: 'artifact:chunk', identifier: state.identifier, delta: state.buffer };
+        state.buffer = '';
+        return;
+      }
+
       if (!state.inside) {
+        if (
+          options.rawHtmlFallback === true
+          && !state.rawHtmlStarted
+          && state.buffer.length > 0
+        ) {
+          const trimmedStart = state.buffer.trimStart();
+          const leadingWhitespace = state.buffer.length - trimmedStart.length;
+          const lower = trimmedStart.toLowerCase();
+          const looksRawHtml =
+            lower.startsWith('<!doctype html')
+            || lower.startsWith('<html');
+          const stillPossible =
+            '<!doctype html'.startsWith(lower)
+            || '<html'.startsWith(lower);
+          if (looksRawHtml) {
+            const firstChunk = state.buffer.slice(leadingWhitespace);
+            state.rawHtmlInside = true;
+            state.rawHtmlStarted = true;
+            state.identifier = options.rawHtmlIdentifier ?? 'generated-html';
+            state.artifactType = 'text/html';
+            state.title = options.rawHtmlTitle ?? 'Generated HTML';
+            state.content = firstChunk;
+            state.buffer = '';
+            yield {
+              type: 'artifact:start',
+              identifier: state.identifier,
+              artifactType: state.artifactType,
+              title: state.title,
+            };
+            yield { type: 'artifact:chunk', identifier: state.identifier, delta: firstChunk };
+            return;
+          }
+          if (stillPossible) return;
+          state.rawHtmlStarted = true;
+        }
+
         const open = findOpenTag(state.buffer);
         if (open.kind === 'none') {
           yield { type: 'text', delta: state.buffer };
@@ -233,7 +292,14 @@ export function createArtifactParser() {
   }
 
   function* flush(): Generator<ArtifactEvent> {
-    if (state.inside) {
+    if (state.rawHtmlInside) {
+      if (state.buffer.length > 0) {
+        state.content += state.buffer;
+        yield { type: 'artifact:chunk', identifier: state.identifier, delta: state.buffer };
+        state.buffer = '';
+      }
+      yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
+    } else if (state.inside) {
       if (state.buffer.length > 0) {
         state.content += state.buffer;
         yield { type: 'artifact:chunk', identifier: state.identifier, delta: state.buffer };
@@ -245,6 +311,7 @@ export function createArtifactParser() {
     }
     state.buffer = '';
     state.inside = false;
+    state.rawHtmlInside = false;
   }
 
   return { feed, flush };

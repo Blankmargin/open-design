@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enterprise Console Spacing</title>
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); padding: 24px; }
+    main { max-width: 980px; margin: 0 auto; display: grid; gap: 16px; }
+    h1 { margin: 0; font-size: var(--text-3xl); }
+    .panel { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-md); padding: 16px; }
+    .row { display: grid; grid-template-columns: 96px 1fr 80px; align-items: center; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
+    .bar { height: 12px; width: var(--w); background: var(--accent); border-radius: var(--radius-sm); }
+    code { color: var(--muted); font-family: var(--font-mono); font-size: var(--text-sm); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Spacing</h1>
+    <section class="panel">
+      <div class="row"><code>--space-1</code><span class="bar" style="--w: var(--space-1)"></span><span>4px</span></div>
+      <div class="row"><code>--space-2</code><span class="bar" style="--w: var(--space-2)"></span><span>8px</span></div>
+      <div class="row"><code>--space-3</code><span class="bar" style="--w: var(--space-3)"></span><span>12px</span></div>
+      <div class="row"><code>--space-4</code><span class="bar" style="--w: var(--space-4)"></span><span>16px</span></div>
+      <div class="row"><code>--space-5</code><span class="bar" style="--w: var(--space-5)"></span><span>20px</span></div>
+      <div class="row"><code>--space-6</code><span class="bar" style="--w: var(--space-6)"></span><span>24px</span></div>
+      <div class="row"><code>--space-8</code><span class="bar" style="--w: var(--space-8)"></span><span>32px</span></div>
+      <div class="row"><code>--space-12</code><span class="bar" style="--w: var(--space-12)"></span><span>48px</span></div>
+    </section>
+  </main>
+</body>
+</html>

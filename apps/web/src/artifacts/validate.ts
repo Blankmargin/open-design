@@ -54,8 +54,24 @@ export type HtmlArtifactValidationResult =
   | { ok: true }
   | { ok: false; reason: string };
 
+export function normalizeHtmlArtifactContent(content: string): string {
+  const trimmed = trimArtifactContent(content);
+  if (STARTS_WITH_DOCUMENT_RE.test(trimmed)) return trimmed;
+
+  const unfenced = extractMarkdownFenceBody(trimmed);
+  if (unfenced !== null) {
+    const inner = trimArtifactContent(unfenced);
+    if (STARTS_WITH_DOCUMENT_RE.test(inner)) return inner;
+    const nested = extractCompleteHtmlDocument(inner);
+    if (nested !== null) return nested;
+  }
+
+  const extracted = extractCompleteHtmlDocument(trimmed);
+  return extracted ?? trimmed;
+}
+
 export function validateHtmlArtifact(content: string): HtmlArtifactValidationResult {
-  const trimmed = content.replace(/^﻿/, '').trim();
+  const trimmed = trimArtifactContent(content);
   if (trimmed.length === 0) {
     return { ok: false, reason: 'empty content' };
   }
@@ -69,6 +85,35 @@ export function validateHtmlArtifact(content: string): HtmlArtifactValidationRes
     return { ok: false, reason: 'content references an internal project storage path such as .live-artifacts, .od, or .tmp' };
   }
   return { ok: true };
+}
+
+function trimArtifactContent(content: string): string {
+  return content.replace(/^﻿/, '').trim();
+}
+
+function extractMarkdownFenceBody(content: string): string | null {
+  const match = /^(```|~~~)[ \t]*(?:html?|HTML?)?[ \t]*\r?\n([\s\S]*?)\r?\n\1[ \t]*$/u.exec(content);
+  return match ? match[2] ?? '' : null;
+}
+
+function extractCompleteHtmlDocument(content: string): string | null {
+  const open = findDocumentStart(content);
+  if (open === -1) return null;
+  const closeStart = content.toLowerCase().lastIndexOf('</html>');
+  if (closeStart === -1 || closeStart < open) return null;
+  return trimArtifactContent(content.slice(open, closeStart + '</html>'.length));
+}
+
+function findDocumentStart(content: string): number {
+  const re = /(^|\n)[ \t]*(?:<!doctype\s+html\b|<html\b)/gi;
+  const match = re.exec(content);
+  if (!match || match.index === undefined) return -1;
+  return match.index + (match[1]?.length ?? 0) + leadingHorizontalWhitespaceLength(match[0].slice(match[1]?.length ?? 0));
+}
+
+function leadingHorizontalWhitespaceLength(value: string): number {
+  const match = /^[ \t]*/u.exec(value);
+  return match?.[0].length ?? 0;
 }
 
 function referencesReservedProjectPath(content: string): boolean {

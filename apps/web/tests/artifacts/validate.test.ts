@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateHtmlArtifact } from '../../src/artifacts/validate';
+import { normalizeHtmlArtifactContent, validateHtmlArtifact } from '../../src/artifacts/validate';
 
 describe('validateHtmlArtifact', () => {
   it('rejects an empty string', () => {
@@ -166,5 +166,29 @@ describe('validateHtmlArtifact', () => {
     const html = '﻿\n  <!doctype html>\n<html><body>real document body content</body></html>';
     const result = validateHtmlArtifact(html);
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('normalizeHtmlArtifactContent', () => {
+  const document = '<!doctype html>\n<html><head><title>x</title></head><body><h1>Complete artifact</h1></body></html>';
+
+  it('returns an already complete document trimmed', () => {
+    expect(normalizeHtmlArtifactContent(`\n  ${document}\n`)).toBe(document);
+  });
+
+  it('unwraps a complete document from a markdown html code fence', () => {
+    expect(normalizeHtmlArtifactContent(`\`\`\`html\n${document}\n\`\`\``)).toBe(document);
+  });
+
+  it('extracts a complete document after model prose', () => {
+    const content = `Here is the complete page:\n\n${document}\n\nIt is ready.`;
+    expect(normalizeHtmlArtifactContent(content)).toBe(document);
+  });
+
+  it('leaves prose summaries untouched so validation still rejects them', () => {
+    const prose = 'Updated the <html lang> attribute and cleaned up the footer layout for mobile previews.';
+    expect(normalizeHtmlArtifactContent(prose)).toBe(prose);
+    const result = validateHtmlArtifact(normalizeHtmlArtifactContent(prose));
+    expect(result.ok).toBe(false);
   });
 });

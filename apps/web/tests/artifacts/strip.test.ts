@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { stripArtifact } from '../../src/artifacts/strip';
+import { stripArtifact, stripRenderableArtifact } from '../../src/artifacts/strip';
 
 describe('stripArtifact', () => {
   it('removes a real artifact tag and its body from prose', () => {
@@ -36,6 +36,16 @@ describe('stripArtifact', () => {
   it('returns content unchanged when no artifact open tag is present', () => {
     const input = 'Just prose, no markup.';
     expect(stripArtifact(input)).toBe(input);
+  });
+
+  it('strips a direct full-document HTML artifact for chat rendering', () => {
+    const input = '<!doctype html><html><body><h1>Dashboard</h1></body></html>';
+    expect(stripRenderableArtifact(input)).toBe('');
+  });
+
+  it('preserves prose that merely mentions doctype html later in the sentence', () => {
+    const input = 'I added <!doctype html> at the top of the generated page.';
+    expect(stripRenderableArtifact(input)).toBe(input);
   });
 
   it('does not truncate when an open tag has no matching close', () => {

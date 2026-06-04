@@ -978,6 +978,9 @@ function renderMetadataBlock(
       '- **screen-file-first rule**: each distinct user-facing screen or surface MUST be delivered as its own HTML file unless the user explicitly asks for a single-page scroll or single-file artifact. Do not combine landing pages, product app screens, dashboards, history, pricing, settings, mobile app, tablet app, desktop app, or OS widget surfaces into one long page. Use `index.html` as a launcher/overview that links to screen files when more than one screen exists; it may summarize the product and show screen cards, but it must not contain the full design for every screen.',
     );
     lines.push(
+      '- **follow-up new-screen rule**: when a later user message asks for a new navigable page or route (for example login, sign-in, auth, onboarding, profile, settings, detail, report, or checkout), create a separate descriptive HTML file such as `login.html` and only edit the existing page enough to link or redirect to it. Do not hide a new page inside the prior screen as a modal, tab, or extra section unless the user explicitly asks for that behavior. Logout/account-menu requests that jump to login must wire the existing avatar/menu action to the standalone login page.',
+    );
+    lines.push(
       '- **product-realism rule**: final artifacts must look like real end-user product UI. Do not render project metadata, screen counts, target counts, state counts, "demo only" labels, "settings" panels for choosing platforms, "full design target" badges, viewport/device selector controls, theme/style knobs, platform output maps, behavior-spec sections, or design-process cards inside the product unless the user explicitly asks for a design spec/dashboard. Any navigation/tabs inside the artifact must be real product navigation, not designer controls for switching generated mockups.',
     );
     lines.push(

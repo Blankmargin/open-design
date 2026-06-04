@@ -37,6 +37,7 @@ import {
   DEFAULT_START_APPS,
   DEFAULT_STOP_APPS,
   parsePortOption,
+  parseHostOption,
   resolveRunApps,
   resolveStartApps,
   resolveStopApps,
@@ -456,6 +457,7 @@ async function spawnWebRuntime(config: ToolDevConfig, options: CliOptions): Prom
   if (daemonStatus.url == null) throw new Error("daemon must be running before web starts");
 
   const webPort = parsePortOption(options.webPort, "--web-port");
+  const host = parseHostOption(options.host);
   const daemonPort = urlPort(daemonStatus.url);
   const logHandle = await openAppLog(config, APP_KEYS.WEB);
 
@@ -476,6 +478,7 @@ async function spawnWebRuntime(config: ToolDevConfig, options: CliOptions): Prom
         [SIDECAR_ENV.WEB_DIST_DIR]: config.apps.web.nextDistDir,
         [SIDECAR_ENV.WEB_TSCONFIG_PATH]: config.apps.web.nextTsconfigPath,
         [SIDECAR_ENV.WEB_PORT]: String(webPort ?? 0),
+        OD_HOST: host,
         PORT: String(webPort ?? 0),
         ...(options.parentPid == null ? {} : { [TOOLS_DEV_PARENT_PID_ENV]: String(options.parentPid) }),
         ...(options.prod === true
@@ -1080,6 +1083,7 @@ function addSharedOptions(command: ReturnType<typeof cli.command>) {
 function addPortOptions(command: ReturnType<typeof cli.command>) {
   return command
     .option("--daemon-port <port>", "force daemon port; conflict quick-fails")
+    .option("--host <host>", "web host to bind (default: 127.0.0.1)")
     .option("--web-port <port>", "force web port; conflict quick-fails")
     .option("--prod", "use production build (requires pnpm --filter @open-design/web build first)");
 }

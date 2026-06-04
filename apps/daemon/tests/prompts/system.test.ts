@@ -257,6 +257,16 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('the assistant message should only summarize the result');
   });
 
+  it('tells follow-up prototype runs to create standalone files for new navigable screens', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**follow-up new-screen rule**');
+    expect(prompt).toContain('create a separate descriptive HTML file such as `login.html`');
+    expect(prompt).toContain('Logout/account-menu requests that jump to login');
+  });
+
   it('uses the primary skill surface when composed skill modes conflict', () => {
     const prompt = composeSystemPrompt({
       skillMode: 'image',

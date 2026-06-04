@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enterprise Console Preview</title>
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--text-base); }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 212px 1fr; }
+    .side { background: var(--surface); border-right: 1px solid var(--border-soft); padding: 12px; }
+    .logo { height: 34px; display: flex; align-items: center; gap: 8px; font-weight: 800; color: #0d4778; }
+    .mark { width: 28px; height: 18px; border-radius: 999px; background: linear-gradient(135deg, #00a6d6 0 52%, #ff9f3d 53% 100%); }
+    .search { width: 100%; height: 32px; border: 1px solid var(--border); border-radius: 999px; padding: 0 12px; margin: 8px 0 16px; color: var(--fg); }
+    .label { color: var(--meta); font-size: 11px; margin: 12px 0 4px; }
+    .nav { display: grid; gap: 2px; }
+    .nav a { color: var(--fg-2); text-decoration: none; padding: 8px 10px; border-radius: 8px; font-size: 12px; }
+    .nav a.active { background: color-mix(in oklab, var(--accent), white 88%); color: var(--fg); font-weight: 700; }
+    .top { height: 40px; background: #e9eefc; border-bottom: 1px solid var(--border-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+    .tabs { display: flex; gap: 4px; overflow: hidden; }
+    .tab { height: 30px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--fg-2); white-space: nowrap; font-size: 12px; }
+    .tab.active { background: white; color: var(--fg); border: 1px solid var(--border-soft); }
+    .workspace { padding: 16px; display: grid; gap: 16px; }
+    .panel { background: white; border: 1px solid var(--border-soft); border-radius: 8px; padding: 16px; }
+    .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .kpi { display: flex; gap: 12px; align-items: center; }
+    .ico { width: 38px; height: 38px; border-radius: 8px; background: var(--accent); color: white; display: grid; place-items: center; }
+    .kpi span { display: block; color: var(--fg-2); font-size: 11px; line-height: 1.25; }
+    .kpi strong { display: block; color: var(--accent); font: 700 14px/1 var(--font-mono); margin-top: 2px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 16px; }
+    h2 { margin: 0 0 14px; font-size: 16px; }
+    .donut { width: 150px; height: 150px; border-radius: 50%; background: conic-gradient(var(--accent) 0 72%, #c271de 72% 90%, #00a78f 90% 100%); margin: 18px auto; position: relative; display: grid; place-items: center; text-align: center; font-size: 12px; color: var(--fg-2); }
+    .donut:before { content: ""; width: 92px; height: 92px; border-radius: 50%; background: white; position: absolute; }
+    .donut span { position: relative; max-width: 76px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+    th { height: 34px; background: var(--surface-warm); color: var(--muted); text-align: left; font-weight: 500; padding: 0 10px; border-bottom: 1px solid var(--border-soft); }
+    td { height: 36px; padding: 0 10px; border-bottom: 1px solid var(--border-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tag { display: inline-flex; height: 20px; align-items: center; padding: 0 8px; border-radius: 6px; background: color-mix(in oklab, var(--success), white 86%); color: #0f8c66; font-size: 11px; }
+    .actions { color: var(--accent); }
+    @media (max-width: 920px) { .shell { grid-template-columns: 1fr; } .side { display: none; } .kpis, .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="side">
+      <div class="logo"><i class="mark"></i>SeeLink+</div>
+      <input class="search" placeholder="Search by name or number..." />
+      <div class="label">Home</div>
+      <nav class="nav"><a>Business Data Monitoring</a><a class="active">O&amp;M Monitoring</a><a>View Library Statistics</a></nav>
+      <div class="label">Functions</div>
+      <nav class="nav"><a>System management</a><a>User center</a><a>Operations management</a><a>Network management</a><a>Alarm management</a></nav>
+    </aside>
+    <main>
+      <header class="top"><div class="tabs"><span class="tab active">O&amp;M Monitoring ×</span><span class="tab">Business Data Monitoring ×</span><span class="tab">Deployment task management ×</span></div><span>2023/12/17 14:36:00</span></header>
+      <section class="workspace">
+        <section class="panel kpis">
+          <div class="kpi"><i class="ico">◎</i><p><span>Number of access devices</span><strong>31022</strong></p></div>
+          <div class="kpi"><i class="ico">♙</i><p><span>Total number of customers</span><strong>52396</strong></p></div>
+          <div class="kpi"><i class="ico">▣</i><p><span>Total number of manual orders</span><strong>2792</strong></p></div>
+          <div class="kpi"><i class="ico">▤</i><p><span>Total number of work orders</span><strong>459</strong></p></div>
+          <div class="kpi"><i class="ico">▥</i><p><span>Total business opportunities</span><strong>172</strong></p></div>
+        </section>
+        <section class="grid">
+          <article class="panel"><h2>Data statistics</h2><div class="donut"><span>Number of businesses opened</span></div></article>
+          <article class="panel"><h2>Data statistics</h2><div class="donut"><span>Access Device Type</span></div></article>
+          <article class="panel"><h2>Hot List</h2><table><thead><tr><th>No.</th><th>Algorithm name</th><th>Openings</th></tr></thead><tbody><tr><td>01</td><td>pan-targeting</td><td><span class="tag">83</span></td></tr><tr><td>02</td><td>Regional invasions</td><td><span class="tag">70</span></td></tr><tr><td>03</td><td>Face Attribute Analysis</td><td><span class="tag">54</span></td></tr></tbody></table></article>
+        </section>
+        <section class="panel"><h2>Latest Orders</h2><table><thead><tr><th>Order id</th><th>Order source</th><th>Client name</th><th>Order status</th><th>Creation time</th></tr></thead><tbody><tr><td>8106580430362...</td><td>Manual opening</td><td>Willzhang</td><td>Opened successful...</td><td>2025-01-08 15:59...</td></tr><tr><td>8106580430362...</td><td>Manual opening</td><td>Joycehuang</td><td>awaiting manual...</td><td>2025-01-08 15:59...</td></tr><tr><td>8106580430362...</td><td>Manual opening</td><td>Chuanbin</td><td>Opened successful...</td><td>2025-01-08 15:59...</td></tr></tbody></table></section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -31,6 +31,7 @@ export type ToolDevAppName = (typeof ALL_APPS)[number];
 
 export type ToolDevOptions = {
   daemonPort?: number | string | null;
+  host?: string;
   json?: boolean;
   namespace?: string;
   prod?: boolean;
@@ -141,6 +142,15 @@ export function parsePortOption(value: number | string | null | undefined, optio
     throw new Error(`${optionName} must be an integer between 1 and 65535`);
   }
   return parsed;
+}
+
+export function parseHostOption(value: string | null | undefined): string {
+  if (value == null || value.trim().length === 0) return "127.0.0.1";
+  const host = value.trim();
+  if (!/^[a-zA-Z0-9._\-:[\]@]+$/.test(host)) {
+    throw new Error("--host contains invalid characters");
+  }
+  return host;
 }
 
 export function resolveToolDevConfig(options: ToolDevOptions = {}): ToolDevConfig {

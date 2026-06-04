@@ -1,0 +1,46 @@
+{
+  "sourceRoot": "/Users/momocyann/Downloads/模板",
+  "derivedAt": "2026-06-03T10:45:00.000+08:00",
+  "evidence": [
+    {
+      "token": "--bg",
+      "value": "#f3f5f8",
+      "source": "International screenshots show a cool light gray application workspace behind white panels."
+    },
+    {
+      "token": "--surface",
+      "value": "#ffffff",
+      "source": "Dashboard cards, filter panels, tables, sidebar, tabs, and dialogs use flat white surfaces."
+    },
+    {
+      "token": "--accent",
+      "value": "#6257f2",
+      "source": "Active tabs, primary buttons, pagination, KPI values, and chart emphasis use a purple-blue accent."
+    },
+    {
+      "token": "--success",
+      "value": "#18b785",
+      "source": "Success and Normal table status chips use green/teal tints."
+    },
+    {
+      "token": "--warn",
+      "value": "#ff9f3d",
+      "source": "Awaiting approval and warning states use orange tints."
+    },
+    {
+      "token": "--danger",
+      "value": "#f04444",
+      "source": "Abnormal, error, and destructive states use red tints."
+    },
+    {
+      "token": "--radius-sm",
+      "value": "6px",
+      "source": "Inputs, tags, table controls, and compact admin components use restrained 6px to 8px radii."
+    },
+    {
+      "token": "--text-base",
+      "value": "13px",
+      "source": "The screenshots use compact enterprise text with dense tables and navigation rows."
+    }
+  ]
+}

@@ -63,3 +63,13 @@ export function stripArtifact(content: string): string {
   if (end === -1) return content;
   return (content.slice(0, open) + content.slice(end + CLOSE.length)).trim();
 }
+
+export function stripRawHtmlArtifact(content: string): string {
+  const trimmed = content.trimStart();
+  if (!/^(?:<!doctype\s+html\b|<html\b)/i.test(trimmed)) return content;
+  return '';
+}
+
+export function stripRenderableArtifact(content: string): string {
+  return stripRawHtmlArtifact(stripArtifact(content));
+}

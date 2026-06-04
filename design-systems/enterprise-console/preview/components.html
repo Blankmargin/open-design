@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enterprise Console Components</title>
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--text-base); padding: 24px; }
+    main { max-width: 1040px; margin: 0 auto; display: grid; gap: 16px; }
+    section { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-md); padding: 16px; }
+    h1 { margin: 0 0 16px; font-size: var(--text-3xl); }
+    h2 { margin: 0 0 12px; font-size: var(--text-xl); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .btn { height: 32px; min-width: 76px; border-radius: 8px; border: 1px solid var(--border); background: white; color: var(--fg-2); padding: 0 16px; }
+    .primary { background: var(--accent); border-color: var(--accent); color: white; }
+    .success { background: var(--success); border-color: var(--success); color: white; }
+    .warning { background: var(--warn); border-color: var(--warn); color: white; }
+    .danger { background: var(--danger); border-color: var(--danger); color: white; }
+    input, select { height: 32px; border: 1px solid var(--border); border-radius: 6px; padding: 0 12px; min-width: 220px; }
+    .tag { display: inline-flex; height: 20px; align-items: center; padding: 0 8px; border-radius: 6px; background: color-mix(in oklab, var(--success), white 86%); color: #0f8c66; font-size: 11px; }
+    .tag.warn { background: color-mix(in oklab, var(--warn), white 84%); color: #c96e09; }
+    .tag.danger { background: color-mix(in oklab, var(--danger), white 86%); color: #c22b2b; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { height: 34px; background: var(--surface-warm); color: var(--muted); text-align: left; padding: 0 10px; }
+    td { height: 36px; border-bottom: 1px solid var(--border-soft); padding: 0 10px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Enterprise Console Components</h1>
+    <section><h2>Buttons</h2><div class="row"><button class="btn">Default</button><button class="btn primary">Primary</button><button class="btn success">Success</button><button class="btn warning">Warning</button><button class="btn danger">Error</button></div></section>
+    <section><h2>Form controls</h2><div class="row"><input placeholder="Please enter" /><select><option>Please choose</option></select><button class="btn primary">Search</button><button class="btn">Reset</button></div></section>
+    <section><h2>Tags</h2><div class="row"><span class="tag">Success</span><span class="tag">Normal</span><span class="tag warn">Awaiting approval</span><span class="tag danger">Abnormal</span></div></section>
+    <section><h2>Dense table</h2><table><thead><tr><th>Telephone</th><th>Log type</th><th>Results</th><th>Audit status</th><th>Operation</th></tr></thead><tbody><tr><td>189****8692</td><td>Login</td><td><span class="tag">Success</span></td><td><span class="tag">Normal</span></td><td style="color:var(--accent)">In detail Audits</td></tr><tr><td>189****8692</td><td>Logout</td><td><span class="tag">Success</span></td><td><span class="tag warn">Awaiting approval</span></td><td style="color:var(--accent)">In detail Audits</td></tr></tbody></table></section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enterprise Console Typography</title>
+  <link rel="stylesheet" href="../tokens.css" />
+  <style>
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); padding: 24px; }
+    main { max-width: 980px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-md); padding: 20px; }
+    h1 { margin: 0 0 16px; font-size: var(--text-3xl); letter-spacing: var(--tracking-display); }
+    .spec { display: grid; gap: 10px; }
+    .row { display: grid; grid-template-columns: 120px 1fr 120px; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--border-soft); padding: 8px 0; }
+    code { color: var(--muted); font-family: var(--font-mono); font-size: var(--text-sm); }
+    .xs { font-size: var(--text-xs); }
+    .sm { font-size: var(--text-sm); }
+    .base { font-size: var(--text-base); }
+    .lg { font-size: var(--text-lg); }
+    .xl { font-size: var(--text-xl); font-weight: 700; }
+    .two { font-size: var(--text-2xl); font-weight: 700; }
+    .three { font-size: var(--text-3xl); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Typography</h1>
+    <section class="spec">
+      <div class="row"><code>--text-xs</code><span class="xs">Navigation metadata and timestamps</span><code>11px</code></div>
+      <div class="row"><code>--text-sm</code><span class="sm">Sidebar rows, table cells, filters</span><code>12px</code></div>
+      <div class="row"><code>--text-base</code><span class="base">Default enterprise console body</span><code>13px</code></div>
+      <div class="row"><code>--text-lg</code><span class="lg">Dense labels and compact KPI text</span><code>14px</code></div>
+      <div class="row"><code>--text-xl</code><span class="xl">Panel title</span><code>16px</code></div>
+      <div class="row"><code>--text-2xl</code><span class="two">Section title</span><code>18px</code></div>
+      <div class="row"><code>--text-3xl</code><span class="three">Dashboard total 31022</span><code>24px</code></div>
+    </section>
+  </main>
+</body>
+</html>
