@@ -258,6 +258,15 @@ describe('buildApiProjectContext', () => {
 
     expect(context).toContain('No project files are present yet');
     expect(context).toContain('create `index.html`');
+    expect(context).toContain('`index.html` must be a lightweight launcher/table of contents');
+    expect(context).toContain('put real screen content in child files and shared CSS/JS');
+    expect(context).toContain('Do not put overview/KPI boards, dashboards, charts, filters, tables, or topbar business actions in `index.html`');
+    expect(context).toContain('create a child file such as `overview.html` or `dashboard.html`');
+    expect(context).toContain('<a href="devices.html">设备管理</a>');
+    expect(context).toContain('do not add target="_blank" to internal project HTML links');
+    expect(context).toContain('do not build index navigation with onclick/data-page/hash routers');
+    expect(context).toContain('All visible interactive controls must work in the preview');
+    expect(context).toContain('Do not emit href="#", javascript:void(0), undefined inline handlers');
   });
 
   it('includes compact active HTML and incremental edit rules for existing projects', async () => {
@@ -274,6 +283,24 @@ describe('buildApiProjectContext', () => {
     expect(context).toContain('For small changes, preserve all existing files');
     expect(context).toContain('output only the affected file(s)');
     expect(context).toContain('omitted files remain unchanged on disk');
+    expect(context).toContain('`index.html` is navigation glue for multi-page prototypes');
+    expect(context).toContain('overview/KPI boards, dashboards, charts, filters, tables');
+    expect(context).toContain('create it as a child file such as `overview.html` or `dashboard.html`');
+    expect(context).toContain('Index launcher links must be real same-frame anchors');
+    expect(context).toContain('internal navigation must replace the preview frame');
+    expect(context).toContain('Do not use onclick, data-page, switchPage()');
+    expect(context).toContain('For follow-up page changes, edit the relevant child HTML/CSS file');
+    expect(context).toContain('update `index.html` only to add the new link');
+    expect(context).toContain('If a menu click is broken, fix the `href` in `index.html`');
+    expect(context).toContain('For global shell controls shared with sidebar/topbar/header');
+    expect(context).toContain('update every child HTML file that renders that shell');
+    expect(context).toContain('Do not add shell-level controls only to `index.html` or only to the active page');
+    expect(context).toContain('For any interaction fix, make the clicked control executable rather than decorative');
+    expect(context).toContain('visible state changes actually happen');
+    expect(context).toContain('toast-only fake actions');
+    expect(context).toContain('login.html must load or define its submit handler');
+    expect(context).toContain('auth persistence must catch storage errors');
+    expect(context).toContain('fallback such as URL `?auth=1` or `window.name`');
     expect(context).toContain('preserve unrelated markup, styles, scripts, and layout');
     expect(context).toContain('Files: index.html, login.html');
     expect(context).toContain('Active file: index.html');

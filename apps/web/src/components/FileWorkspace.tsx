@@ -6,6 +6,7 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
+import type { SandboxShimInit } from '../runtime/srcdoc';
 import { useAnalytics } from '../analytics/provider';
 import {
   trackFileManagerClick,
@@ -356,6 +357,8 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest]);
 
+  const previewStorageSnapshotRef = useRef<SandboxShimInit | null>(null);
+
   function openFile(name: string) {
     setUploadError(null);
     onTabsStateChange({
@@ -363,6 +366,11 @@ export function FileWorkspace({
       active: name,
     });
     setActiveTab(name);
+  }
+
+  function handlePreviewNavigate(name: string, snapshot: SandboxShimInit) {
+    previewStorageSnapshotRef.current = snapshot;
+    openFile(name);
   }
 
   // Open `openName` (focusing it) and close `closeName` in a single tab-state
@@ -1143,6 +1151,8 @@ export function FileWorkspace({
             onSendBoardCommentAttachments={onSendBoardCommentAttachments}
             onFileSaved={onRefreshFiles}
             onOpenFileReplacing={openFileReplacing}
+            onPreviewNavigate={handlePreviewNavigate}
+            previewStorageSnapshot={previewStorageSnapshotRef}
             commentPortalId={commentPortalId}
             onCommentModeChange={onCommentModeChange}
           />

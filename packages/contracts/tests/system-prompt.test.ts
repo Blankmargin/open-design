@@ -122,8 +122,68 @@ describe('composeSystemPrompt', () => {
 
     expect(prompt).toContain('**index-entry rule**');
     expect(prompt).toContain('MUST include an `index.html` entry file');
+    expect(prompt).toContain('`index.html` is the stable launcher/directory');
+    expect(prompt).toContain('Put the real screen layout, interaction markup, and page-specific styling in those child files');
+    expect(prompt).toContain('overview/KPI boards');
+    expect(prompt).toContain('create it as a child file such as `overview.html` or `dashboard.html`');
+    expect(prompt).toContain('**index-link contract**');
+    expect(prompt).toContain('<a href="devices.html">设备管理</a>');
+    expect(prompt).toContain('Do not add `target="_blank"` to internal project HTML links');
+    expect(prompt).toContain('OD previews run inside an iframe');
+    expect(prompt).toContain('Do not implement index navigation with `onclick`');
+    expect(prompt).toContain('hidden `.page-section` panels');
+    expect(prompt).toContain('**shared-asset rule**');
+    expect(prompt).toContain('css/app.css');
     expect(prompt).toContain('customers.html');
     expect(prompt).toContain('analytics.html');
     expect(prompt).toContain('logs.html');
+  });
+
+  it('treats index.html as navigation glue for follow-up prototype edits', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**follow-up child-page edit rule**');
+    expect(prompt).toContain('treat `index.html` as navigation glue only');
+    expect(prompt).toContain('create a new descriptive child HTML file');
+    expect(prompt).toContain('update `index.html` only to add its link');
+  });
+
+  it('requires shared shell controls to be updated across child pages', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**shared-shell consistency rule**');
+    expect(prompt).toContain('大屏驾驶舱 beside notifications/help');
+    expect(prompt).toContain('include every affected child HTML file in `files[]`');
+    expect(prompt).toContain('Do not add the control only to `index.html` or only to the active page');
+  });
+
+  it('requires login/auth flows to run in sandboxed previews', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**auth-flow runnable rule**');
+    expect(prompt).toContain('login/auth is only complete when it works across files');
+    expect(prompt).toContain('real `handleLogin(event)`');
+    expect(prompt).toContain('polyfill `localStorage` / `sessionStorage` in memory');
+    expect(prompt).toContain('data is lost when navigating between HTML files');
+    expect(prompt).toContain('`window.name` unconditionally as the primary cross-page mechanism');
+    expect(prompt).toContain('Do NOT put the `window.name` write inside a `catch` block');
+  });
+
+  it('requires visible interactive controls to be runnable, not decorative', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**interactive-control runnable rule**');
+    expect(prompt).toContain('every visible interactive control must work in the preview');
+    expect(prompt).toContain('Do not ship `href="#"`, `javascript:void(0)`');
+    expect(prompt).toContain('undefined inline handlers');
+    expect(prompt).toContain('toast-only fake actions');
   });
 });

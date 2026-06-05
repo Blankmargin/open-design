@@ -303,6 +303,18 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
     });
   }
 
+  // ── P0-8: fake / non-runnable interactive controls ────────────────
+  const interactiveFinding = detectDeadInteractiveControl(html);
+  if (interactiveFinding) {
+    out.push(interactiveFinding);
+  }
+
+  // ── P0-9: auth localStorage with window.name only in catch ────────
+  const authStorageFinding = detectAuthStorageFallback(html);
+  if (authStorageFinding) {
+    out.push(authStorageFinding);
+  }
+
   // ── P1-0: ALL-CAPS without letter-spacing ─────────────────────────
   // Refero's typography rules: any `text-transform: uppercase` rule
   // must pair with `letter-spacing: >= 0.06em` (or an absolute px
@@ -548,6 +560,167 @@ function clip(s: string): string {
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function detectDeadInteractiveControl(html: string): LintFinding | null {
+  const definedFunctions = collectDefinedFunctionNames(html);
+  const hasExternalScript = /<script\b[^>]*\ssrc\s*=/i.test(html);
+
+  for (const anchor of html.matchAll(/<a\b[^>]*>/gi)) {
+    const tag = anchor[0];
+    const href = getAttr(tag, 'href')?.trim();
+    if (href && /^(?:#|javascript:void\s*\(|javascript:;?$)/i.test(href)) {
+      return {
+        severity: 'P0',
+        id: 'dead-interaction',
+        message: 'Anchor uses a fake href, so clicking it will not perform a real product action.',
+        fix: 'Point the link at a real file/anchor, wire a defined click handler that changes visible state, or render it as a disabled control if unavailable.',
+        snippet: clip(tag),
+      };
+    }
+    if (href && /^[^#?]+\.html(?:[?#].*)?$/i.test(href) && getAttr(tag, 'target')?.toLowerCase() === '_blank') {
+      return {
+        severity: 'P0',
+        id: 'internal-link-new-tab',
+        message: 'Internal project HTML link uses target="_blank"; OD previews run in an iframe, so the click may not navigate the visible preview.',
+        fix: 'Remove target="_blank" from internal `.html` links. Use a normal same-frame anchor such as `<a href="dashboard-fullscreen.html">大屏驾驶舱</a>`.',
+        snippet: clip(tag),
+      };
+    }
+  }
+
+  for (const tag of html.match(/<(?:button|a)\b[^>]*>/gi) ?? []) {
+    const handler = getInlineHandler(tag);
+    const called = handler ? firstCalledFunction(handler) : null;
+    if (!hasExternalScript && called && !definedFunctions.has(called) && !isKnownBrowserFunction(called)) {
+      return {
+        severity: 'P0',
+        id: 'undefined-handler',
+        message: `Inline handler calls \`${called}()\`, but that function is not defined in the artifact.`,
+        fix: 'Define the function in the emitted script/shared JS, bind the control with addEventListener, or remove/disable the control.',
+        snippet: clip(tag),
+      };
+    }
+  }
+
+  for (const buttonMatch of html.matchAll(/<button\b[^>]*>([\s\S]*?)<\/button>/gi)) {
+    const tag = /^<button\b[^>]*>/i.exec(buttonMatch[0])?.[0] ?? buttonMatch[0];
+    if (hasAttr(tag, 'disabled')) continue;
+    if (getAttr(tag, 'type')?.toLowerCase() === 'submit') continue;
+    if (!getAttr(tag, 'type') && isInsideFormAt(html, buttonMatch.index ?? 0)) continue;
+    if (getInlineHandler(tag)) continue;
+    if (hasAttr(tag, 'id') || hasAttr(tag, 'data-action') || hasAttr(tag, 'data-target') || hasAttr(tag, 'aria-controls')) continue;
+    return {
+      severity: 'P0',
+      id: 'unbound-button',
+      message: 'Visible button has no inline handler, submit type, id/data-action/aria-controls binding hook, or disabled state.',
+      fix: 'Wire it to real JavaScript behavior, give it a clear binding hook used by a script, make it a submit button inside a handled form, or mark it disabled.',
+      snippet: clip(buttonMatch[0]),
+    };
+  }
+
+  for (const formMatch of html.matchAll(/<form\b[^>]*>/gi)) {
+    const tag = formMatch[0];
+    if (getInlineHandler(tag)) continue;
+    const action = getAttr(tag, 'action')?.trim();
+    if (action && !/^(?:#|javascript:void\s*\(|javascript:;?$)/i.test(action)) continue;
+    if (hasAttr(tag, 'id') || hasAttr(tag, 'data-action')) continue;
+    return {
+      severity: 'P0',
+      id: 'unhandled-form',
+      message: 'Form has no action, submit handler, id/data-action binding hook, or real submit path.',
+      fix: 'Add a defined onsubmit handler, bind submit behavior in a script, or provide a real action target. Login/search/filter forms must update state or navigate in preview.',
+      snippet: clip(tag),
+    };
+  }
+
+  return null;
+}
+
+function collectDefinedFunctionNames(html: string): Set<string> {
+  const names = new Set<string>();
+  const scriptBodies = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) ?? [];
+  for (const script of scriptBodies) {
+    for (const m of script.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)) {
+      if (m[1]) names.add(m[1]);
+    }
+    for (const m of script.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g)) {
+      if (m[1]) names.add(m[1]);
+    }
+    for (const m of script.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)\s*=/g)) {
+      if (m[1]) names.add(m[1]);
+    }
+  }
+  return names;
+}
+
+function getInlineHandler(tag: string): string | null {
+  for (const attr of ['onclick', 'onsubmit', 'onchange', 'oninput']) {
+    const value = getAttr(tag, attr);
+    if (value) return value;
+  }
+  return null;
+}
+
+function firstCalledFunction(handler: string): string | null {
+  const m = /^\s*(?:return\s+)?(?:window\.)?([A-Za-z_$][\w$]*)\s*\(/.exec(handler);
+  return m?.[1] ?? null;
+}
+
+function isKnownBrowserFunction(name: string): boolean {
+  return ['alert', 'confirm', 'prompt', 'print', 'history', 'open'].includes(name);
+}
+
+function getAttr(tag: string, attr: string): string | null {
+  const re = new RegExp(`\\s${escapeRe(attr)}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
+  const m = re.exec(tag);
+  return m?.[1] ?? m?.[2] ?? m?.[3] ?? null;
+}
+
+function hasAttr(tag: string, attr: string): boolean {
+  const re = new RegExp(`\\s${escapeRe(attr)}(?:\\s*=|\\s|>|$)`, 'i');
+  return re.test(tag);
+}
+
+function isInsideFormAt(html: string, index: number): boolean {
+  const before = html.slice(0, index);
+  return before.lastIndexOf('<form') > before.lastIndexOf('</form>');
+}
+
+function detectAuthStorageFallback(html: string): LintFinding | null {
+  const scriptBodies = (
+    html.match(/<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi) ?? []
+  )
+    .map((s) => s.replace(/^<script[^>]*>|<\/script>$/gi, ''))
+    .join('\n');
+  if (!scriptBodies) return null;
+
+  const hasStorageWrite =
+    /(?:localStorage|sessionStorage)\.setItem\s*\(/.test(scriptBodies);
+  const hasHtmlNav =
+    /window\.location\.(?:replace|href)\s*=?\s*\(?['"][^'"]*\.html/.test(
+      scriptBodies,
+    );
+  if (!hasStorageWrite || !hasHtmlNav) return null;
+
+  const hasWindowNameAnywhere = /window\.name\s*=/.test(scriptBodies);
+  const hasWindowNameInCatch =
+    /catch\s*\([^)]*\)\s*\{[^}]*window\.name\s*=/s.test(scriptBodies);
+  const hasWindowNameOutsideCatch =
+    hasWindowNameAnywhere && !hasWindowNameInCatch;
+
+  if (!hasWindowNameAnywhere || (hasWindowNameInCatch && !hasWindowNameOutsideCatch)) {
+    return {
+      severity: 'P0',
+      id: 'auth-storage-fallback',
+      message: hasWindowNameInCatch
+        ? 'Auth persistence sets `window.name` only inside a `catch` block as a fallback for `localStorage`. The preview sandbox polyfills `localStorage` in memory — it succeeds but data is lost on page navigation, so the `catch` never runs and `window.name` is never set.'
+        : 'Auth persistence uses `localStorage` with `window.location` navigation but does not set `window.name`. In the preview sandbox, `localStorage` data is lost when navigating between HTML files.',
+      fix: 'Set `window.name` unconditionally before or alongside the `localStorage` write, not inside a `catch` block. Pattern: `window.name="authed"; try{localStorage.setItem("a","1")}catch(_){}`.',
+    };
+  }
+
+  return null;
 }
 
 // Scan every `linear-gradient(...)` body for a blue→cyan two-stop

@@ -21,6 +21,12 @@ import {
   MANUAL_EDIT_SOURCE_PATH_ATTR,
 } from '../edit-mode/bridge';
 
+export type SandboxShimInit = {
+  localStorage?: Record<string, string>;
+  sessionStorage?: Record<string, string>;
+  windowName?: string;
+};
+
 export type SrcdocOptions = {
   deck?: boolean;
   baseHref?: string;
@@ -32,6 +38,7 @@ export type SrcdocOptions = {
   paletteBridge?: boolean;
   initialPalette?: string | null;
   previewFocusGuard?: boolean;
+  initStorage?: SandboxShimInit | null;
 };
 
 export function buildSrcdoc(
@@ -53,7 +60,7 @@ export function buildSrcdoc(
   const withOdIds = annotateMissingOdIds(wrapped);
   const withSourcePaths = options.editBridge ? annotateManualEditSourcePaths(withOdIds) : withOdIds;
   const withBase = options.baseHref ? injectBaseHref(withSourcePaths, options.baseHref) : withSourcePaths;
-  const withShim = injectSandboxShim(withBase);
+  const withShim = injectSandboxShim(withBase, options.initStorage);
   const withFocusGuard = options.previewFocusGuard ? injectPreviewFocusGuard(withShim) : withShim;
   const withDeck = options.deck ? injectDeckBridge(withFocusGuard, options.initialSlideIndex) : withFocusGuard;
   // Comment + Inspect share an element-selection bridge: both pick a
@@ -641,6 +648,13 @@ function escapeAttr(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/<\//g, '<\\/')
+    .replace(new RegExp('\u2028', 'g'), '\\u2028')
+    .replace(new RegExp('\u2029', 'g'), '\\u2029');
+}
+
 // Sandboxed iframes (we use `sandbox="allow-scripts"`) without
 // `allow-same-origin` raise a SecurityError on first `localStorage` /
 // `sessionStorage` access. Many freeform-generated decks call
@@ -649,35 +663,94 @@ function escapeAttr(value: string): string {
 // becomes a static, unnavigable preview. We install a same-origin
 // in-memory shim BEFORE any user script runs so those decks degrade
 // gracefully (position just doesn't persist across reloads).
-// allow-popups and allow-popups-to-escape-sandbox are needed for 
+// allow-popups and allow-popups-to-escape-sandbox are needed for
 // links with target="_blank" to work in the sandboxed preview.
 // Empty hrefs and hash only hrefs will be intercepted and ignored.
 // hrefs leading to an id on the page will be scrolled into view.
-function injectSandboxShim(doc: string): string {
+//
+// Navigation bridge: programmatic navigations to `.html` files
+// (Location.prototype.replace/assign, href setter, anchor clicks)
+// are intercepted and forwarded to the host via `od:open-file-request`
+// postMessage. The host switches the active file tab and seeds the
+// new iframe's shim with the storage snapshot so auth state flows
+// across files without relying on `window.name` surviving
+// srcDoc-to-URL transitions.
+function injectSandboxShim(doc: string, init?: SandboxShimInit | null): string {
+  const initJson = init ? safeJsonForScript(init) : 'null';
   const shim = `<script data-od-sandbox-shim>(function(){
-  function makeStore(){
-    var data = {};
+  var __init = ${initJson};
+  var __lsD = {}, __ssD = {};
+  if (__init && __init.localStorage) {
+    var _s = __init.localStorage;
+    for (var _k in _s) { if (Object.prototype.hasOwnProperty.call(_s, _k)) __lsD[_k] = String(_s[_k]); }
+  }
+  if (__init && __init.sessionStorage) {
+    var _s2 = __init.sessionStorage;
+    for (var _k2 in _s2) { if (Object.prototype.hasOwnProperty.call(_s2, _k2)) __ssD[_k2] = String(_s2[_k2]); }
+  }
+  if (__init && __init.windowName) { try { window.name = __init.windowName; } catch(_e){} }
+  function makeStore(backing){
     var api = {
-      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
-      setItem: function(k, v){ data[k] = String(v); },
-      removeItem: function(k){ delete data[k]; },
-      clear: function(){ data = {}; },
-      key: function(i){ return Object.keys(data)[i] || null; }
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(backing, k) ? backing[k] : null; },
+      setItem: function(k, v){ backing[k] = String(v); },
+      removeItem: function(k){ delete backing[k]; },
+      clear: function(){ for (var p in backing) { if (Object.prototype.hasOwnProperty.call(backing, p)) delete backing[p]; } },
+      key: function(i){ return Object.keys(backing)[i] || null; }
     };
-    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(backing).length; } });
     return api;
   }
-  function tryShim(name){
+  function tryShim(name, backing){
     var works = false;
     try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
     catch (_) { works = false; }
-    if (works) return;
-    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
-    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+    if (works) {
+      var src = __init && __init[name];
+      if (src) { for (var ik in src) { if (Object.prototype.hasOwnProperty.call(src, ik)) { try { window[name].setItem(ik, src[ik]); } catch(_e){} } } }
+      return;
+    }
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore(backing) }); }
+    catch (_) { try { window[name] = makeStore(backing); } catch (__) {} }
   }
-  tryShim('localStorage');
-  tryShim('sessionStorage');
-  document.addEventListener('click', (e) => {
+  tryShim('localStorage', __lsD);
+  tryShim('sessionStorage', __ssD);
+  function _htmlName(url) {
+    if (typeof url !== 'string') return null;
+    var c = url.split('?')[0].split('#')[0];
+    if (!/\\.html$/i.test(c)) return null;
+    var p = c.split('/');
+    return p[p.length - 1] || null;
+  }
+  function _postNav(fn) {
+    try {
+      var snap = { localStorage: {}, sessionStorage: {}, windowName: window.name || '' };
+      for (var a in __lsD) { if (Object.prototype.hasOwnProperty.call(__lsD, a)) snap.localStorage[a] = __lsD[a]; }
+      for (var b in __ssD) { if (Object.prototype.hasOwnProperty.call(__ssD, b)) snap.sessionStorage[b] = __ssD[b]; }
+      window.parent.postMessage({ type: 'od:open-file-request', name: fn, snapshot: snap }, '*');
+    } catch(_e){}
+  }
+  var _oReplace = Location.prototype.replace;
+  Location.prototype.replace = function(url) {
+    var n = _htmlName(url); if (n) { _postNav(n); return; }
+    return _oReplace.call(this, url);
+  };
+  var _oAssign = Location.prototype.assign;
+  Location.prototype.assign = function(url) {
+    var n = _htmlName(url); if (n) { _postNav(n); return; }
+    return _oAssign.call(this, url);
+  };
+  try {
+    var _hd = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+    if (_hd && _hd.set) {
+      Object.defineProperty(Location.prototype, 'href', {
+        get: _hd.get, set: function(url) {
+          var n = _htmlName(url); if (n) { _postNav(n); return; }
+          return _hd.set.call(this, url);
+        }, configurable: true, enumerable: true
+      });
+    }
+  } catch(_e){}
+  document.addEventListener('click', function(e) {
     if (!e.target || !(e.target instanceof Element)) return;
     var link = e.target.closest('a[href]');
     if (!link) return;
@@ -700,7 +773,7 @@ function injectSandboxShim(doc: string): string {
       }
     } else if (link.getAttribute('target') === '_blank') {
       e.preventDefault();
-      let safe = false;
+      var safe = false;
       try {
         var url = new URL(href, location.href);
         safe =
@@ -709,6 +782,9 @@ function injectSandboxShim(doc: string): string {
           url.protocol === 'mailto:';
       } catch (_) {}
       safe && window.open(href, '_blank', 'noopener,noreferrer');
+    } else {
+      var n = _htmlName(href);
+      if (n) { e.preventDefault(); _postNav(n); }
     }
   });
 })();</script>`;

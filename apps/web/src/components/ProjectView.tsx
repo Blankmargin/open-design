@@ -254,7 +254,7 @@ const CHAT_PANEL_WIDTH_STORAGE_KEY = 'open-design.project.chatPanelWidth';
 const DEFAULT_CHAT_PANEL_WIDTH = 460;
 const MIN_CHAT_PANEL_WIDTH = 345;
 const MAX_CHAT_PANEL_WIDTH = 720;
-const API_ACTIVE_FILE_CONTEXT_MAX_CHARS = 24_000;
+const API_ACTIVE_FILE_CONTEXT_MAX_CHARS = 21_000;
 const MIN_WORKSPACE_PANEL_WIDTH = 400;
 const SPLIT_RESIZE_HANDLE_WIDTH = 8;
 const CHAT_PANEL_KEYBOARD_STEP = 16;
@@ -4794,6 +4794,9 @@ export async function buildApiProjectContext(input: {
     return [
       '## Current project files (API/BYOK compact context)',
       'No project files are present yet. For the first HTML prototype, create `index.html`.',
+      'For multi-page prototypes, `index.html` must be a lightweight launcher/table of contents that links to child HTML pages; put real screen content in child files and shared CSS/JS. Do not put overview/KPI boards, dashboards, charts, filters, tables, or topbar business actions in `index.html`; create a child file such as `overview.html` or `dashboard.html` for that screen.',
+      'Index launcher links must be real same-frame anchors with project-relative `.html` hrefs, such as `<a href="devices.html">设备管理</a>`; do not add target="_blank" to internal project HTML links, and do not build index navigation with onclick/data-page/hash routers or hidden page sections.',
+      'All visible interactive controls must work in the preview: links target real files/anchors, buttons/forms have defined handlers or bindings, and unavailable controls are explicitly disabled. Do not emit href="#", javascript:void(0), undefined inline handlers, unbound buttons, forms without submit handling, or toast-only fake actions.',
     ].join('\n');
   }
 
@@ -4802,6 +4805,13 @@ export async function buildApiProjectContext(input: {
     '## Current project files (API/BYOK compact context)',
     'Use this as the source of truth for follow-up edits. For small changes, preserve all existing files and output only the affected file(s). Do not regenerate every page unless the user explicitly asks for a redesign or full rebuild.',
     'If you use `application/vnd.open-design.files+json`, include only files that must be created or changed; omitted files remain unchanged on disk.',
+    '`index.html` is navigation glue for multi-page prototypes: keep it lightweight and use it only to link child pages. Do not put full page UI, overview/KPI boards, dashboards, charts, filters, tables, forms, topbar business actions, or page-specific content in `index.html` unless the user explicitly asks for a single-page artifact. If the product needs an overview/dashboard screen, create it as a child file such as `overview.html` or `dashboard.html` and link it from `index.html`.',
+    'Index launcher links must be real same-frame anchors with concrete project-relative `.html` hrefs. Do not add target="_blank" to internal project HTML links or use window.open() for child pages; OD previews run inside an iframe and internal navigation must replace the preview frame. Do not use onclick, data-page, switchPage(), preventDefault(), location.hash, hashchange listeners, tabs, or hidden page sections for index navigation.',
+    'For follow-up page changes, edit the relevant child HTML/CSS file. If adding a new page, create a descriptive child HTML file and update `index.html` only to add the new link.',
+    'If a menu click is broken, fix the `href` in `index.html` to point at the child file and include that child file if it must be created; do not replace the link with JavaScript routing.',
+    'For global shell controls shared with sidebar/topbar/header (for example 大屏驾驶舱 beside notifications/help, notifications, help, profile, logout, global search, tenant switcher), update every child HTML file that renders that shell, or move the control into shared `js/shell.js` / `css/app.css` loaded by every page. Do not add shell-level controls only to `index.html` or only to the active page.',
+    'For any interaction fix, make the clicked control executable rather than decorative: links target real files/anchors, buttons/forms have defined handlers or event bindings, visible state changes actually happen, and unavailable controls are explicitly disabled. Do not emit href="#", javascript:void(0), undefined inline handlers, unbound buttons, forms without submit handling, or toast-only fake actions.',
+    'For login/auth fixes, make the flow executable across files: login.html must load or define its submit handler, protected pages must load the guard/logout script, and auth persistence must catch storage errors with a fallback such as URL `?auth=1` or `window.name` for sandboxed previews.',
     'When changing an existing HTML file, start from the supplied source and preserve unrelated markup, styles, scripts, and layout while making the smallest necessary change.',
     'When a change must coordinate multiple files (for example login.html plus index.html auth links), include exactly those affected files.',
     '',

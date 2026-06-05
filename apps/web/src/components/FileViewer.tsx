@@ -71,7 +71,7 @@ import {
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { buildReactComponentSrcdoc } from '../runtime/react-component';
 import { findHtmlEntriesReferencing } from '../runtime/jsx-module-refs';
-import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport } from '../runtime/srcdoc';
+import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport, type SandboxShimInit } from '../runtime/srcdoc';
 import {
   hasUrlModeBridge,
   htmlNeedsFocusGuard,
@@ -828,6 +828,8 @@ interface Props {
   // atomic tab-state update. The React module pointer uses this to jump to the
   // HTML entry that renders a module and drop the dead-end module tab.
   onOpenFileReplacing?: (openName: string, closeName: string) => void;
+  onPreviewNavigate?: (name: string, snapshot: SandboxShimInit) => void;
+  previewStorageSnapshot?: { current: SandboxShimInit | null };
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }
@@ -849,6 +851,8 @@ export function FileViewer({
   onSendBoardCommentAttachments,
   onFileSaved,
   onOpenFileReplacing,
+  onPreviewNavigate,
+  previewStorageSnapshot,
   commentPortalId,
   onCommentModeChange,
 }: Props) {
@@ -890,6 +894,8 @@ export function FileViewer({
         onRemovePreviewComment={onRemovePreviewComment}
         onSendBoardCommentAttachments={onSendBoardCommentAttachments}
         onFileSaved={onFileSaved}
+        onPreviewNavigate={onPreviewNavigate}
+        previewStorageSnapshot={previewStorageSnapshot}
         commentPortalId={commentPortalId}
         onCommentModeChange={onCommentModeChange}
       />
@@ -4088,6 +4094,8 @@ function HtmlViewer({
   onRemovePreviewComment,
   onSendBoardCommentAttachments,
   onFileSaved,
+  onPreviewNavigate,
+  previewStorageSnapshot,
   commentPortalId,
   onCommentModeChange,
 }: {
@@ -4106,6 +4114,8 @@ function HtmlViewer({
   onRemovePreviewComment?: (commentId: string) => Promise<void>;
   onSendBoardCommentAttachments?: (attachments: ChatCommentAttachment[]) => Promise<boolean | void> | boolean | void;
   onFileSaved?: () => Promise<void> | void;
+  onPreviewNavigate?: (name: string, snapshot: SandboxShimInit) => void;
+  previewStorageSnapshot?: { current: SandboxShimInit | null };
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }) {
@@ -4847,15 +4857,21 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
   }, [source, effectiveDeck, projectId, file.name, useUrlLoadPreview]);
 
   const srcDoc = useMemo(
-    () => (previewSource ? buildSrcdoc(previewSource, {
-      deck: effectiveDeck,
-      baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
-      initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
-      selectionBridge: true,
-      editBridge: manualEditMode,
-      paletteBridge: false,
-      previewFocusGuard: true,
-    }) : ''),
+    () => {
+      const snapshot = previewStorageSnapshot?.current ?? null;
+      if (previewStorageSnapshot) previewStorageSnapshot.current = null;
+      return previewSource ? buildSrcdoc(previewSource, {
+        deck: effectiveDeck,
+        baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
+        initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
+        selectionBridge: true,
+        editBridge: manualEditMode,
+        paletteBridge: false,
+        previewFocusGuard: true,
+        initStorage: snapshot,
+      }) : '';
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [previewSource, effectiveDeck, projectId, file.name, previewStateKey, manualEditMode],
   );
   const lazySrcDocTransport = useMemo(() => buildLazySrcdocTransport(), []);
@@ -4884,6 +4900,16 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, []);
+  useEffect(() => {
+    function onOpenFileRequest(ev: MessageEvent) {
+      if (!isOurPreviewIframeSource(ev.source)) return;
+      const data = ev.data as { type?: string; name?: string; snapshot?: SandboxShimInit } | null;
+      if (data?.type !== 'od:open-file-request' || typeof data.name !== 'string') return;
+      onPreviewNavigate?.(data.name, data.snapshot ?? {});
+    }
+    window.addEventListener('message', onOpenFileRequest);
+    return () => window.removeEventListener('message', onOpenFileRequest);
+  }, [isOurPreviewIframeSource, onPreviewNavigate]);
   // Lazy transport preloads an empty shell only while URL-load is the active
   // transport. Once srcdoc becomes active (sandbox shim, Draw, Screenshot,
   // Tweaks, etc.), mount the real artifact HTML directly so we do not depend on

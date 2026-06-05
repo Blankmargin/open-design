@@ -1222,3 +1222,169 @@ describe('trust-gradient', () => {
     expect(findings.find((f) => f.id === 'trust-gradient')).toBeDefined();
   });
 });
+
+describe('dead interactive controls', () => {
+  it('flags fake hash links', () => {
+    const html = `<a href="#" class="nav-item">设备管理</a>`;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'dead-interaction');
+    expect(hit.severity).toBe('P0');
+  });
+
+  it('flags javascript void links', () => {
+    const html = `<a href="javascript:void(0)" class="nav-item">设备管理</a>`;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'dead-interaction')).toBeDefined();
+  });
+
+  it('flags internal project HTML links that open a new tab', () => {
+    const html = `<a href="dashboard-fullscreen.html" target="_blank">大屏驾驶舱</a>`;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'internal-link-new-tab');
+    expect(hit.severity).toBe('P0');
+  });
+
+  it('flags inline handlers that call missing functions in self-contained artifacts', () => {
+    const html = `<button onclick="openDevicePanel()">详情</button>`;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'undefined-handler');
+    expect(hit.message).toContain('openDevicePanel');
+  });
+
+  it('allows inline handlers when the called function is defined', () => {
+    const html = `
+      <button onclick="openDevicePanel()">详情</button>
+      <script>
+        function openDevicePanel() {
+          document.body.dataset.panel = 'device';
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'undefined-handler')).toBeUndefined();
+  });
+
+  it('allows inline handlers that may be defined by a shared external script', () => {
+    const html = `
+      <button onclick="doLogout()">退出登录</button>
+      <script src="js/common.js"></script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'undefined-handler')).toBeUndefined();
+  });
+
+  it('flags visible buttons without a binding hook or disabled state', () => {
+    const html = `<button type="button">导出报表</button>`;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'unbound-button');
+    expect(hit.severity).toBe('P0');
+  });
+
+  it('allows buttons with a data-action binding hook', () => {
+    const html = `
+      <button type="button" data-action="export-report">导出报表</button>
+      <script>
+        document.addEventListener('click', function (event) {
+          if (event.target.closest('[data-action="export-report"]')) {
+            document.body.dataset.exported = 'true';
+          }
+        });
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'unbound-button')).toBeUndefined();
+  });
+
+  it('flags forms without submit handling', () => {
+    const html = `<form><input name="q"><button type="submit">搜索</button></form>`;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'unhandled-form');
+    expect(hit.severity).toBe('P0');
+  });
+
+  it('allows handled forms', () => {
+    const html = `
+      <form onsubmit="return runSearch(event)">
+        <input name="q">
+        <button type="submit">搜索</button>
+      </form>
+      <script>
+        window.runSearch = function (event) {
+          event.preventDefault();
+          document.body.dataset.filtered = 'true';
+          return false;
+        };
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'unhandled-form')).toBeUndefined();
+    expect(findings.find((f) => f.id === 'undefined-handler')).toBeUndefined();
+  });
+});
+
+describe('auth storage fallback', () => {
+  it('flags auth localStorage with window.name only in catch', () => {
+    const html = `
+      <script>
+        function persistAuth() {
+          try {
+            localStorage.setItem('auth', '1');
+            sessionStorage.setItem('auth', '1');
+          } catch(e) {
+            try { window.name = 'auth=1'; } catch(e2) {}
+          }
+        }
+        function redirect() {
+          window.location.replace('index.html');
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'auth-storage-fallback');
+    expect(hit.severity).toBe('P0');
+    expect(hit.message).toContain('catch');
+  });
+
+  it('flags auth localStorage without window.name', () => {
+    const html = `
+      <script>
+        function persistAuth() {
+          localStorage.setItem('auth', '1');
+        }
+        function redirect() {
+          window.location.replace('index.html');
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'auth-storage-fallback');
+    expect(hit.severity).toBe('P0');
+    expect(hit.message).toContain('does not set `window.name`');
+  });
+
+  it('allows auth localStorage with unconditional window.name', () => {
+    const html = `
+      <script>
+        function persistAuth() {
+          window.name = 'auth=1';
+          try { localStorage.setItem('auth', '1'); } catch(_) {}
+        }
+        function redirect() {
+          window.location.replace('index.html');
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'auth-storage-fallback')).toBeUndefined();
+  });
+
+  it('does not flag non-auth localStorage usage without html navigation', () => {
+    const html = `
+      <script>
+        try { localStorage.setItem('slide', '3'); } catch(_) {}
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'auth-storage-fallback')).toBeUndefined();
+  });
+});
