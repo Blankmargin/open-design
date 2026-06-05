@@ -10,6 +10,7 @@ import { projectFileUrl } from './registry';
 import type { StreamHandlers } from './anthropic';
 import { parseSseFrame } from './sse';
 import { isAnthropicSupportedImagePath } from '../utils/apiProtocol';
+import { compactMessageContentForModel } from './transcript-context';
 
 /**
  * Optional per-request context that some protocols thread into the
@@ -123,7 +124,7 @@ export async function buildProxyMessages(
   context?: ProxyContext,
 ): Promise<ProxyMessage[]> {
   if (!usesAnthropicMessagesPayload(endpoint) || !context?.projectId) {
-    return history.map((m) => ({ role: m.role, content: m.content }));
+    return history.map((m) => ({ role: m.role, content: compactMessageContentForModel(m) }));
   }
 
   const out: ProxyMessage[] = [];
@@ -148,12 +149,12 @@ async function buildAnthropicMessageContent(
     (attachment) => attachment.kind === 'image',
   );
   if (message.role !== 'user' || imageAttachments.length === 0) {
-    return message.content;
+    return compactMessageContentForModel(message);
   }
 
   const blocks: Array<ProxyTextContentBlock | ProxyImageContentBlock> = [];
   if (message.content.trim()) {
-    blocks.push({ type: 'text', text: message.content });
+    blocks.push({ type: 'text', text: compactMessageContentForModel(message) });
   }
 
   for (const attachment of imageAttachments) {

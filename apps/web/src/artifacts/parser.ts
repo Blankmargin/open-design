@@ -15,7 +15,9 @@ export type ArtifactEvent =
   | { type: 'artifact:end'; identifier: string; fullContent: string };
 
 const OPEN_PREFIX = '<artifact';
+const BRACKET_OPEN_PREFIX = '[artifact';
 const CLOSE_TAG = '</artifact>';
+const BRACKET_CLOSE_TAG = '[/artifact]';
 
 interface ParserState {
   inside: boolean;
@@ -80,10 +82,16 @@ function findOpenTag(buffer: string): OpenTagMatch {
   let earliestPartialOpen = -1;
   let from = 0;
   while (from < len) {
-    const idx = buffer.indexOf(OPEN_PREFIX, from);
+    const angleIdx = buffer.indexOf(OPEN_PREFIX, from);
+    const bracketIdx = buffer.indexOf(BRACKET_OPEN_PREFIX, from);
+    const idx = angleIdx === -1
+      ? bracketIdx
+      : bracketIdx === -1
+        ? angleIdx
+        : Math.min(angleIdx, bracketIdx);
     if (idx === -1) break;
     if (rangeContains(ranges, idx)) {
-      from = idx + OPEN_PREFIX.length;
+      from = idx + openPrefixAt(buffer, idx).length;
       continue;
     }
     if (unclosedFenceStart !== null && idx >= unclosedFenceStart) {
@@ -92,7 +100,8 @@ function findOpenTag(buffer: string): OpenTagMatch {
       // treat as skip range, not a real tag.
       break;
     }
-    const after = idx + OPEN_PREFIX.length;
+    const prefix = openPrefixAt(buffer, idx);
+    const after = idx + prefix.length;
     const next = buffer.charAt(after);
     if (next === '') {
       // `<artifact` at very end of buffer — could become real with the next
@@ -100,7 +109,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
       if (earliestPartialOpen === -1) earliestPartialOpen = idx;
       break;
     }
-    if (!isRealArtifactOpenAt(buffer, idx)) {
+    if (!isRealArtifactProtocolOpenAt(buffer, idx)) {
       // Not a real <artifact ...> open (e.g. "<artifactual"). Keep scanning.
       from = after;
       continue;
@@ -113,7 +122,7 @@ function findOpenTag(buffer: string): OpenTagMatch {
         if (c === quote) quote = null;
       } else if (c === '"' || c === "'") {
         quote = c;
-      } else if (c === '>') {
+      } else if ((prefix === OPEN_PREFIX && c === '>') || (prefix === BRACKET_OPEN_PREFIX && c === ']')) {
         return { kind: 'complete', start: idx, end: j + 1, attrs: buffer.slice(after, j) };
       }
       j++;
@@ -167,9 +176,27 @@ function findOpenTag(buffer: string): OpenTagMatch {
       note(tailLt);
     }
   }
+  const tailBracket = buffer.lastIndexOf('[');
+  if (tailBracket !== -1 && !rangeContains(ranges, tailBracket)) {
+    const slice = buffer.slice(tailBracket);
+    if (BRACKET_OPEN_PREFIX.startsWith(slice) && slice.length < BRACKET_OPEN_PREFIX.length) {
+      note(tailBracket);
+    }
+  }
 
   if (holdback !== -1) return { kind: 'partial', start: holdback };
   return { kind: 'none' };
+}
+
+function openPrefixAt(buffer: string, idx: number): typeof OPEN_PREFIX | typeof BRACKET_OPEN_PREFIX {
+  return buffer.startsWith(BRACKET_OPEN_PREFIX, idx) ? BRACKET_OPEN_PREFIX : OPEN_PREFIX;
+}
+
+function isRealArtifactProtocolOpenAt(buffer: string, idx: number): boolean {
+  if (buffer.startsWith(OPEN_PREFIX, idx)) return isRealArtifactOpenAt(buffer, idx);
+  if (!buffer.startsWith(BRACKET_OPEN_PREFIX, idx)) return false;
+  const next = buffer.charAt(idx + BRACKET_OPEN_PREFIX.length);
+  return next !== '' && /\s/.test(next);
 }
 
 export function createArtifactParser(options: ArtifactParserOptions = {}) {
@@ -264,10 +291,16 @@ export function createArtifactParser(options: ArtifactParserOptions = {}) {
         continue;
       }
 
-      const closeIdx = state.buffer.indexOf(CLOSE_TAG);
+      const angleCloseIdx = state.buffer.indexOf(CLOSE_TAG);
+      const bracketCloseIdx = state.buffer.indexOf(BRACKET_CLOSE_TAG);
+      const closeIdx = angleCloseIdx === -1
+        ? bracketCloseIdx
+        : bracketCloseIdx === -1
+          ? angleCloseIdx
+          : Math.min(angleCloseIdx, bracketCloseIdx);
       if (closeIdx === -1) {
         // Hold back enough bytes to detect a partial close tag at the tail.
-        const flushUpTo = state.buffer.length - (CLOSE_TAG.length - 1);
+        const flushUpTo = state.buffer.length - (Math.max(CLOSE_TAG.length, BRACKET_CLOSE_TAG.length) - 1);
         if (flushUpTo > 0) {
           const chunk = state.buffer.slice(0, flushUpTo);
           state.content += chunk;
@@ -276,13 +309,16 @@ export function createArtifactParser(options: ArtifactParserOptions = {}) {
         }
         return;
       }
+      const closeTag = state.buffer.startsWith(BRACKET_CLOSE_TAG, closeIdx)
+        ? BRACKET_CLOSE_TAG
+        : CLOSE_TAG;
       const finalChunk = state.buffer.slice(0, closeIdx);
       if (finalChunk.length > 0) {
         state.content += finalChunk;
         yield { type: 'artifact:chunk', identifier: state.identifier, delta: finalChunk };
       }
       yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
-      state.buffer = state.buffer.slice(closeIdx + CLOSE_TAG.length);
+      state.buffer = state.buffer.slice(closeIdx + closeTag.length);
       state.inside = false;
       state.identifier = '';
       state.artifactType = '';

@@ -10,6 +10,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
+import {
+  chooseMultiFileEntry,
+  isMultiFileArtifactType,
+  parseMultiFileArtifact,
+} from '../artifacts/multifile';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
 import { normalizeHtmlArtifactContent, validateHtmlArtifact } from '../artifacts/validate';
 import { createArtifactParser } from '../artifacts/parser';
@@ -1135,15 +1140,74 @@ export function ProjectView({
 
   const persistArtifact = useCallback(
     async (art: Artifact, projectFilesSnapshot?: ProjectFile[]) => {
-      const baseName = artifactBaseNameFor(art);
+      if (isMultiFileArtifactType(art.artifactType)) {
+        const parsed = parseMultiFileArtifact(art.html);
+        if (!parsed.ok) {
+          setError(`Refused to save multi-file artifact "${art.identifier || art.title || 'untitled'}": ${parsed.reason}`);
+          return;
+        }
+        const entryName = chooseMultiFileEntry(parsed.payload);
+        const title = art.title || art.identifier || entryName || 'Multi-file artifact';
+        const metadata = {
+          identifier: art.identifier,
+          artifactType: art.artifactType,
+          inferred: false,
+          multiFileEntry: entryName,
+        };
+        let wroteAny = false;
+        for (const fileEntry of parsed.payload.files) {
+          const isHtml = /\.html?$/i.test(fileEntry.name);
+          const content = isHtml
+            ? normalizeHtmlArtifactContent(fileEntry.content)
+            : fileEntry.content;
+          if (isHtml) {
+            const validation = validateHtmlArtifact(content);
+            if (!validation.ok) {
+              setError(`Refused to save "${fileEntry.name}": ${validation.reason}`);
+              return;
+            }
+          }
+          const manifest = isHtml
+            ? createHtmlArtifactManifest({
+                entry: fileEntry.name,
+                title: fileEntry.name === entryName ? title : fileEntry.name,
+                sourceSkillId: project.skillId ?? undefined,
+                designSystemId: project.designSystemId,
+                metadata,
+              })
+            : inferLegacyManifest({
+                entry: fileEntry.name,
+                title: fileEntry.name,
+                metadata: {
+                  ...metadata,
+                  sourceSkillId: project.skillId ?? undefined,
+                  designSystemId: project.designSystemId,
+                },
+              });
+          const file = await writeProjectTextFile(project.id, fileEntry.name, content, {
+            artifactManifest: manifest ?? undefined,
+          });
+          if (!file) {
+            setError(`Failed to save multi-file artifact file "${fileEntry.name}".`);
+            return;
+          }
+          wroteAny = true;
+        }
+        if (wroteAny) {
+          setFilesRefresh((n) => n + 1);
+          requestOpenFile(entryName);
+        }
+        return;
+      }
       const ext = artifactExtensionFor(art);
       // Pick a name that doesn't collide with an existing project file.
       // The first run uses `<base>.<ext>`; subsequent runs append `-2`, `-3`…
       // so prior artifacts aren't silently overwritten.
       const currentProjectFiles = projectFilesSnapshot ?? projectFilesRef.current;
       const existing = new Set(currentProjectFiles.map((f) => f.name));
-      let fileName = `${baseName}${ext}`;
+      let fileName = artifactFileNameFor(art, currentProjectFiles);
       let n = 2;
+      const baseName = fileName.slice(0, -ext.length);
       while (existing.has(fileName) && savedArtifactRef.current !== fileName) {
         fileName = `${baseName}-${n}${ext}`;
         n += 1;
@@ -4657,6 +4721,28 @@ function artifactBaseNameFor(art: Artifact): string {
       .replace(/[^a-z0-9_-]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 60) || 'artifact'
+  );
+}
+
+export function artifactFileNameFor(art: Artifact, projectFiles: ProjectFile[] = []): string {
+  const ext = artifactExtensionFor(art);
+  if (ext !== '.html') return `${artifactBaseNameFor(art)}${ext}`;
+  const baseName = artifactBaseNameFor(art);
+  const hasHtmlEntry = projectFiles.some((file) => file.kind === 'html' || /\.html?$/i.test(file.name));
+  if (!hasHtmlEntry) return 'index.html';
+  return `${baseName}${ext}`;
+}
+
+function isGenericHtmlArtifactName(baseName: string, art: Artifact): boolean {
+  const identifier = (art.identifier || '').trim().toLowerCase();
+  const title = (art.title || '').trim().toLowerCase();
+  return (
+    !identifier
+    || identifier === 'generated-html'
+    || identifier === 'artifact'
+    || title === 'generated html'
+    || baseName === 'generated-html'
+    || baseName === 'artifact'
   );
 }
 

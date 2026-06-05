@@ -45,6 +45,7 @@ function detectClientType(): 'desktop' | 'web' | 'unknown' {
 }
 import { parseSseFrame } from './sse';
 import { trackRunProgress, trackRunStart, trackRunTerminal } from '../observability/stuck-run';
+import { compactPriorAssistantArtifactContent } from './transcript-context';
 
 const MAX_TRANSCRIPT_MESSAGE_CHARS = 12_000;
 const LARGE_TOOL_RESULT_CHARS = 8_000;
@@ -166,6 +167,7 @@ export function sanitizePriorAssistantTurnForTranscript(content: string): string
       return match;
     },
   );
+  sanitized = compactPriorAssistantArtifactContent(sanitized);
   return sanitized;
 }
 

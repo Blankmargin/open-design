@@ -74,6 +74,45 @@ describe('buildProxyMessages', () => {
     ]);
   });
 
+  it('compacts prior assistant artifacts for non-Anthropic proxy messages', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+
+    const messages = await buildProxyMessages(
+      '/api/proxy/openai/stream',
+      [
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          content: [
+            'Done.',
+            '<artifact identifier="security-admin" type="text/html" title="Security Admin">',
+            '<!doctype html><html><body><h1>Large dashboard source</h1></body></html>',
+            '</artifact>',
+          ].join('\n'),
+          createdAt: 1,
+        },
+        {
+          id: 'user-1',
+          role: 'user',
+          content: '<!doctype html><html><body>User is asking about this literal HTML</body></html>',
+          createdAt: 2,
+        },
+      ],
+      { projectId: 'project-1' },
+    );
+
+    expect(messages[0]).toMatchObject({
+      role: 'assistant',
+      content: expect.stringContaining('artifact omitted from prior assistant turn'),
+    });
+    expect(String(messages[0]?.content)).toContain('title="Security Admin"');
+    expect(String(messages[0]?.content)).not.toContain('Large dashboard source');
+    expect(messages[1]).toEqual({
+      role: 'user',
+      content: '<!doctype html><html><body>User is asking about this literal HTML</body></html>',
+    });
+  });
+
   it('sends Anthropic image content blocks in the proxy request body', async () => {
     const pngBytes = new Uint8Array([137, 80, 78, 71]);
     const fetchMock = vi
@@ -139,6 +178,55 @@ describe('buildProxyMessages', () => {
         },
       ],
       projectId: 'project-1',
+    });
+  });
+
+  it('compacts prior assistant text while preserving Anthropic image blocks', async () => {
+    const pngBytes = new Uint8Array([137, 80, 78, 71]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: {
+          get: (name: string) => (name.toLowerCase() === 'content-type' ? 'image/png' : null),
+        },
+        arrayBuffer: async () => pngBytes.buffer,
+      }),
+    );
+
+    const messages = await buildProxyMessages(
+      '/api/proxy/anthropic/stream',
+      [
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          content: '<!doctype html><html><body><h1>Prior cockpit source</h1></body></html>',
+          createdAt: 1,
+        },
+        userMessage('Describe the attached image', [
+          { path: 'references/logo.png', name: 'logo.png', kind: 'image', size: 4 },
+        ]),
+      ],
+      { projectId: 'project-1' },
+    );
+
+    expect(messages[0]).toEqual({
+      role: 'assistant',
+      content: '[raw HTML artifact omitted from prior assistant turn; full content is available in project files.]',
+    });
+    expect(messages[1]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Describe the attached image' },
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/png',
+            data: 'iVBORw==',
+          },
+        },
+      ],
     });
   });
 

@@ -27,6 +27,7 @@ import {
 import { expandHomePrefix, resolveProjectRelativePath } from './home-expansion.js';
 import { resolveProjectRoot } from './project-root.js';
 import { userFacingAgentLabel } from './user-facing-agent-label.js';
+import { buildProjectOutline } from './project-context-summary.js';
 
 export { resolveProjectRoot };
 import { createCommandInvocation } from '@open-design/platform';
@@ -10771,13 +10772,11 @@ export async function startServer({
     // systemPrompt. We also stitch in the cwd hint so the agent knows
     // where its file tools should write, and the attachment list so it
     // doesn't have to guess what the user just dropped in.
-    // Also ship the current file listing so the agent can pick a unique
-    // filename instead of clobbering a previous artifact.
-    const filesListBlock = existingProjectFiles.length
-      ? `\nFiles already in this folder (do NOT overwrite unless the user asks; pick a fresh, descriptive name for new artifacts):\n${existingProjectFiles
-          .map((f) => `- ${f.name}`)
-          .join('\n')}`
-      : '\nThis folder is empty. Choose a clear, descriptive filename for whatever you create.';
+    // Also ship a compact project outline so the agent can pick target files
+    // without pattern-matching on a full prior HTML artifact from chat history.
+    const projectOutlineBlock = cwd
+      ? `\n${await buildProjectOutline(cwd, existingProjectFiles)}`
+      : '';
     const projectRecord =
       typeof projectId === 'string' && projectId
         ? getProject(db, projectId)
@@ -10789,7 +10788,7 @@ export async function startServer({
       return v.dirs ?? [];
     })();
     const cwdHint = cwd
-      ? `\n\nYour working directory: ${cwd}\nWrite project files relative to it (e.g. \`index.html\`, \`assets/x.png\`). The user can browse those files in real time.${filesListBlock}`
+      ? `\n\nYour working directory: ${cwd}\nWrite project files relative to it (e.g. \`index.html\`, \`assets/x.png\`). The user can browse those files in real time.${projectOutlineBlock}`
       : '';
     const linkedDirsHint = linkedDirs.length > 0
       ? `\n\nLinked code folders (read-only reference code the user wants you to see):\n${

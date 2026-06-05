@@ -267,6 +267,44 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('Logout/account-menu requests that jump to login');
   });
 
+  it('tells prototype runs not to stop after a plan without delivering', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**must-deliver-after-plan rule**');
+    expect(prompt).toContain('a plan is not a valid final answer');
+    expect(prompt).toContain('Do not end with "next I will build"');
+  });
+
+  it('requires index.html as the entry for multi-page prototypes', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**index-entry rule**');
+    expect(prompt).toContain('MUST include an `index.html` entry file');
+    expect(prompt).toContain('customers.html');
+    expect(prompt).toContain('analytics.html');
+    expect(prompt).toContain('logs.html');
+  });
+
+  it('forbids fake file progress and plan-only endings in API mode', () => {
+    const prompt = composeSystemPrompt({ streamFormat: 'plain' });
+
+    expect(prompt).toContain('Claims that files have been written, saved, created, or updated');
+    expect(prompt).toContain('css/tokens.css 已写入');
+    expect(prompt).toContain('In API mode you cannot write project files directly');
+    expect(prompt).toContain('Ending the response after a plan');
+    expect(prompt).toContain('Plan briefly, then immediately continue to the deliverable');
+    expect(prompt).toContain('<tool_calls>...</tool_calls>');
+    expect(prompt).toContain('<toolcall id="read">');
+    expect(prompt).toContain('No reader will execute that markup');
+    expect(prompt).toContain('application/vnd.open-design.files+json');
+    expect(prompt).toContain('Include `index.html` as `entry`');
+    expect(prompt).toContain('make `index.html` link to child pages');
+  });
+
   it('uses the primary skill surface when composed skill modes conflict', () => {
     const prompt = composeSystemPrompt({
       skillMode: 'image',

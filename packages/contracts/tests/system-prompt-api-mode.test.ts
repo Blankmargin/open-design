@@ -99,11 +99,26 @@ describe('composeSystemPrompt — API mode (#313)', () => {
       const prompt = composeSystemPrompt({ streamFormat: 'plain' });
       expect(prompt).toMatch(/<todo-list>/);
       expect(prompt).toMatch(/\[读取/);
+      expect(prompt).toContain('<tool_calls>...</tool_calls>');
+      expect(prompt).toContain('<toolcall ...>...</toolcall>');
+      expect(prompt).toContain('<function_call>');
+      expect(prompt).toContain('<toolcall id="read">');
+      expect(prompt).toContain('No reader will execute that markup');
     });
 
     it('tells the agent to state its plan in prose instead of pretending to call TodoWrite', () => {
       const prompt = composeSystemPrompt({ streamFormat: 'plain' });
-      expect(prompt).toMatch(/state.*plan.*prose|describe.*plan.*prose|plan.*as prose/i);
+      expect(prompt).toMatch(/plan.*prose|concise prose plan/i);
+      expect(prompt).toMatch(/continue immediately to the deliverable/i);
+    });
+
+    it('forbids plan-only and fake file-written responses in API mode', () => {
+      const prompt = composeSystemPrompt({ streamFormat: 'plain' });
+      expect(prompt).toContain('Claims that files have been written, saved, created, or updated');
+      expect(prompt).toContain('css/tokens.css 已写入');
+      expect(prompt).toContain('In API mode you cannot write project files directly');
+      expect(prompt).toContain('Ending the response after a plan');
+      expect(prompt).toContain('Plan briefly, then immediately continue to the deliverable');
     });
 
     it('explicitly invalidates later "call TodoWrite" / tool-use instructions', () => {
@@ -118,6 +133,13 @@ describe('composeSystemPrompt — API mode (#313)', () => {
     it('still allows <artifact> HTML output', () => {
       const prompt = composeSystemPrompt({ streamFormat: 'plain' });
       expect(prompt).toMatch(/<artifact>/);
+    });
+
+    it('allows multi-file artifacts for multi-page API/BYOK prototypes', () => {
+      const prompt = composeSystemPrompt({ streamFormat: 'plain' });
+      expect(prompt).toContain('application/vnd.open-design.files+json');
+      expect(prompt).toContain('Include `index.html` as `entry`');
+      expect(prompt).toContain('make `index.html` link to child pages');
     });
 
     it('honors metadata.skipDiscoveryBrief before the discovery rules', () => {

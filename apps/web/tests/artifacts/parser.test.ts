@@ -38,6 +38,40 @@ describe('createArtifactParser', () => {
     expect(trailing).toContain('Done.');
   });
 
+  it('parses bracketed artifact open tags emitted by API models', () => {
+    const content = JSON.stringify({
+      entry: 'index.html',
+      files: [{ path: 'login.html', content: '<!doctype html><html><body>Login</body></html>' }],
+    });
+    const events = collect(
+      `[artifact type="application/vnd.open-design.files+json" identifier="video-surveillance-platform"]\n${content}\n</artifact>`,
+    );
+
+    expect(events.find((e) => e.type === 'artifact:start')).toMatchObject({
+      identifier: 'video-surveillance-platform',
+      artifactType: 'application/vnd.open-design.files+json',
+    });
+    expect(events.find((e) => e.type === 'artifact:end')).toMatchObject({
+      identifier: 'video-surveillance-platform',
+      fullContent: expect.stringContaining('"login.html"'),
+    });
+  });
+
+  it('parses bracketed artifact close tags too', () => {
+    const events = collect(
+      '[artifact identifier="hello" type="text/html" title="Hi"]<h1>Hi</h1>[/artifact]',
+    );
+
+    expect(events.find((e) => e.type === 'artifact:start')).toMatchObject({
+      identifier: 'hello',
+      artifactType: 'text/html',
+      title: 'Hi',
+    });
+    expect(events.find((e) => e.type === 'artifact:end')).toMatchObject({
+      fullContent: '<h1>Hi</h1>',
+    });
+  });
+
   it('keeps raw HTML as text by default', () => {
     const html = '<!doctype html><html><body><h1>Dashboard</h1></body></html>';
     const events = collect(html);

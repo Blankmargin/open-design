@@ -246,7 +246,7 @@ describe('streamViaDaemon', () => {
     expect(sanitized).toBe(original);
   });
 
-  it('preserves <artifact> blocks — only question-form is stripped, the deliverable stays intact', () => {
+  it('compacts prior assistant <artifact> blocks so full deliverables are not replayed', () => {
     const original = [
       'Build summary below.',
       '',
@@ -257,9 +257,59 @@ describe('streamViaDaemon', () => {
     ].join('\n');
     const sanitized = sanitizePriorAssistantTurnForTranscript(original);
 
-    expect(sanitized).toBe(original);
-    expect(sanitized).toContain('<artifact');
-    expect(sanitized).toContain('<!doctype html>');
+    expect(sanitized).toContain('Build summary below.');
+    expect(sanitized).toContain('artifact omitted from prior assistant turn');
+    expect(sanitized).toContain('type=text/html');
+    expect(sanitized).toContain('title="Pitch deck"');
+    expect(sanitized).toContain('identifier=deck');
+    expect(sanitized).not.toContain('<artifact');
+    expect(sanitized).not.toContain('<!doctype html>');
+    expect(sanitized).not.toContain('slide content');
+  });
+
+  it('compacts prior assistant multi-file artifacts to entry and filenames', () => {
+    const sanitized = sanitizePriorAssistantTurnForTranscript(
+      [
+        'Build summary below.',
+        '',
+        '<artifact identifier="security-console" type="application/vnd.open-design.files+json" title="Security Console">',
+        JSON.stringify({
+          entry: 'index.html',
+          files: [
+            { name: 'index.html', content: '<!doctype html><html><body>dashboard source</body></html>' },
+            { name: 'devices.html', content: '<!doctype html><html><body>devices source</body></html>' },
+          ],
+        }),
+        '</artifact>',
+      ].join('\n'),
+    );
+
+    expect(sanitized).toContain('multi-file artifact omitted');
+    expect(sanitized).toContain('entry=index.html');
+    expect(sanitized).toContain('files=index.html, devices.html');
+    expect(sanitized).not.toContain('dashboard source');
+    expect(sanitized).not.toContain('devices source');
+  });
+
+  it('compacts direct raw HTML assistant output but preserves user HTML questions', () => {
+    const transcript = buildDaemonTranscript([
+      {
+        id: '1',
+        role: 'user',
+        content: '<!doctype html><html><body>Why did this not render?</body></html>',
+      },
+      {
+        id: '2',
+        role: 'assistant',
+        content: '<!doctype html><html><body><h1>Security Dashboard</h1></body></html>',
+      },
+      { id: '3', role: 'user', content: '继续加登录页' },
+    ]);
+
+    expect(transcript).toContain('Why did this not render?');
+    expect(transcript).toContain('raw HTML artifact omitted from prior assistant turn');
+    expect(transcript).not.toContain('Security Dashboard');
+    expect(transcript).toContain('继续加登录页');
   });
 
   it('sanitizes ONLY assistant content inside buildDaemonTranscript — user messages quoting <question-form> stay verbatim', () => {

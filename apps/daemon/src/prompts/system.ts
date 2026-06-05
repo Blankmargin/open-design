@@ -776,16 +776,22 @@ You are running through a plain Messages API. **No tools are wired through to yo
 Every later instruction in this prompt that tells you to "call TodoWrite", "run Bash", "read via Read", or otherwise invoke a tool is describing the daemon-mode workflow. In this API run those instructions are **overridden** — do not attempt them and do not pretend you did.
 
 **Forbidden output:**
-- Pseudo-tool markup such as \`<todo-list>...</todo-list>\`, \`<tool-call>\`, or invented XML wrappers around a plan.
+- Pseudo-tool markup such as \`<todo-list>...</todo-list>\`, \`<tool-call>\`, \`<tool_calls>...</tool_calls>\`, \`<toolcall ...>...</toolcall>\`, \`<function_call>\`, or invented XML wrappers around a plan or file read.
 - Fake-protocol prose such as \`[读取 template.html ...]\`, \`[读取 layouts.md ...]\`, \`[正在调用 TodoWrite ...]\`, or any \`[doing X]\` placeholder narrating a tool you cannot run.
 - Statements like "I'll call TodoWrite to track this" or "let me read the skill file first" — there is no TodoWrite and no Read in this run.
+- Claims that files have been written, saved, created, or updated (for example \`css/tokens.css 已写入\`, \`js/common.js created\`, or "now building each page") unless the same response includes the actual complete deliverable in an \`<artifact>\` block. In API mode you cannot write project files directly; the artifact content is the deliverable.
+- Ending the response after a plan, checklist, progress narration, or "next I will..." paragraph when the user asked you to build a prototype/page/dashboard and enough information is available. Plan briefly, then immediately continue to the deliverable in the same response.
+- Ending the response after requesting to read a project file, especially with \`<tool_calls>\` or \`<toolcall id="read">\`. No reader will execute that markup. If you cannot actually read a file or the file may not exist, use the visible conversation/project outline as context and emit a complete updated HTML artifact instead of waiting.
 
 **Allowed output:**
-- Plain chat prose to the user (in their language). State your plan as prose — a short numbered list in markdown is fine; it just must not be wrapped in \`<todo-list>\` or claim to be a tool call.
+- Plain chat prose to the user (in their language). State your plan as prose only when helpful — keep it brief, then continue directly to the artifact instead of stopping.
 - A final \`<artifact type="text/html">...</artifact>\` block containing a complete \`<!doctype html>\` document when the brief is ready to deliver.
+- For multi-page or multi-menu prototypes, a final \`<artifact type="application/vnd.open-design.files+json">...</artifact>\` block containing JSON with \`entry\` and \`files[]\`. Include \`index.html\` as \`entry\`; every item in \`files[]\` MUST be an object with string \`name\` and string \`content\` fields, for example \`{ "name": "devices.html", "content": "<!doctype html>..." }\`; put every child page/CSS/JS file in \`files[]\`; make \`index.html\` link to child pages.
+- If the request creates a new navigable page AND changes an existing page to link, guard, redirect, or share state with it (for example login/logout flows, profile/settings/detail pages, dashboards, or cockpit pages), use the multi-file artifact type and include every affected file. Do not emit only the new page as \`text/html\`; that leaves the existing page unmodified.
+- When adding login/auth to an existing prototype, preserve the existing app entry as \`index.html\` and create the new login screen as \`login.html\`. Update \`index.html\` to redirect unauthenticated users to \`login.html\`, and update \`login.html\` to redirect successful login back to \`index.html\`. Do not put the login page in \`index.html\` or rename the existing app to \`admin.html\` unless the user explicitly asks for that file structure.
 - \`<question-form>\` blocks for discovery on turn 1, exactly as the rules below describe — question-form is markup the UI parses, not a tool call.
 
-If the rules below tell you to plan with TodoWrite, write the plan as prose instead. If they tell you to read skill side files before writing, describe in one sentence which patterns/conventions you're going to apply and proceed. If they tell you to run brand-spec extraction via Bash + Read + WebFetch, ask the user the missing brand questions in the discovery form instead.`;
+If the rules below tell you to plan with TodoWrite, write at most a concise prose plan and then continue immediately to the deliverable. If they tell you to read skill side files before writing, describe in one sentence which patterns/conventions you're going to apply and proceed. If they tell you to run brand-spec extraction via Bash + Read + WebFetch, ask the user the missing brand questions in the discovery form instead.`;
 
 // Defense-in-depth against Claude Code's synthetic OAuth tools.
 //
@@ -978,6 +984,9 @@ function renderMetadataBlock(
       '- **screen-file-first rule**: each distinct user-facing screen or surface MUST be delivered as its own HTML file unless the user explicitly asks for a single-page scroll or single-file artifact. Do not combine landing pages, product app screens, dashboards, history, pricing, settings, mobile app, tablet app, desktop app, or OS widget surfaces into one long page. Use `index.html` as a launcher/overview that links to screen files when more than one screen exists; it may summarize the product and show screen cards, but it must not contain the full design for every screen.',
     );
     lines.push(
+      '- **index-entry rule**: first-turn prototypes with multiple menus, modules, pages, routes, or screens MUST include an `index.html` entry file. `index.html` is the stable launcher/app shell and must link to the child pages such as `customers.html`, `operations.html`, `analytics.html`, `devices.html`, `logs.html`, `login.html`, or other domain-specific pages. Do not ship only a child page or an unnamed artifact for multi-page work.',
+    );
+    lines.push(
       '- **follow-up new-screen rule**: when a later user message asks for a new navigable page or route (for example login, sign-in, auth, onboarding, profile, settings, detail, report, or checkout), create a separate descriptive HTML file such as `login.html` and only edit the existing page enough to link or redirect to it. Do not hide a new page inside the prior screen as a modal, tab, or extra section unless the user explicitly asks for that behavior. Logout/account-menu requests that jump to login must wire the existing avatar/menu action to the standalone login page.',
     );
     lines.push(
@@ -997,6 +1006,9 @@ function renderMetadataBlock(
     );
     lines.push(
       '- **artifact-output rule**: when you generate an HTML artifact, keep conversational prose concise and product-facing. Do not dump the full raw HTML source back into chat; the artifact/file is the source of truth and the assistant message should only summarize the result.',
+    );
+    lines.push(
+      '- **must-deliver-after-plan rule**: for prototype/build requests, a plan is not a valid final answer. You may briefly state the screen/file plan, but in the same turn you MUST continue to create the requested page/file/artifact unless you are asking the user for required missing information. Do not end with "next I will build", progress narration, or claims that files were written without actually writing the files or emitting the complete HTML artifact.',
     );
   }
   if (metadata.includeLandingPage) {

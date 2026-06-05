@@ -114,4 +114,16 @@ describe('composeSystemPrompt', () => {
       prompt.indexOf('### direction-picker'),
     );
   });
+
+  it('requires index.html as the entry for multi-page prototypes', () => {
+    const prompt = composeSystemPrompt({
+      metadata: { kind: 'prototype', fidelity: 'production' } as any,
+    });
+
+    expect(prompt).toContain('**index-entry rule**');
+    expect(prompt).toContain('MUST include an `index.html` entry file');
+    expect(prompt).toContain('customers.html');
+    expect(prompt).toContain('analytics.html');
+    expect(prompt).toContain('logs.html');
+  });
 });

@@ -4,6 +4,7 @@ import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ProjectView,
+  artifactFileNameFor,
   clearStreamingConversationMarker,
   finalizeActiveAssistantMessagesOnStop,
   findExistingArtifactProjectFile,
@@ -29,6 +30,7 @@ const listActiveChatRuns = vi.fn();
 const listProjectRuns = vi.fn();
 const reattachDaemonRun = vi.fn();
 const streamViaDaemon = vi.fn();
+const streamMessage = vi.fn();
 const saveMessage = vi.fn();
 const createConversation = vi.fn();
 const patchConversation = vi.fn();
@@ -92,7 +94,7 @@ vi.mock('../../src/i18n', () => ({
 }));
 
 vi.mock('../../src/providers/anthropic', () => ({
-  streamMessage: vi.fn(),
+  streamMessage: (...args: unknown[]) => streamMessage(...args),
 }));
 
 vi.mock('../../src/providers/daemon', () => ({
@@ -210,6 +212,38 @@ describe('selectPrimaryProjectFile', () => {
     const html = projectFile('index.html', 'html', 1_000);
 
     expect(selectPrimaryProjectFile([sidecar, html])).toBe(html);
+  });
+});
+
+describe('artifactFileNameFor', () => {
+  it('uses index.html for the first HTML artifact even when it has a specific title', () => {
+    expect(artifactFileNameFor({
+      identifier: 'video-surveillance-admin',
+      artifactType: 'text/html',
+      title: '视频安防平台后台管理',
+      html: '<!doctype html><html><body></body></html>',
+    })).toBe('index.html');
+  });
+
+  it('keeps explicit HTML artifact names for child pages after an HTML entry exists', () => {
+    expect(artifactFileNameFor({
+      identifier: 'login',
+      artifactType: 'text/html',
+      title: 'Login',
+      html: '<!doctype html><html><body></body></html>',
+    }, [projectFile('index.html', 'html', 1)])).toBe('login.html');
+  });
+
+  it('does not rename later generic HTML artifacts when an HTML entry already exists', () => {
+    expect(artifactFileNameFor(
+      {
+        identifier: 'generated-html',
+        artifactType: 'text/html',
+        title: 'Generated HTML',
+        html: '<!doctype html><html><body></body></html>',
+      },
+      [projectFile('index.html', 'html', 1)],
+    )).toBe('generated-html.html');
   });
 });
 
@@ -944,6 +978,234 @@ describe('ProjectView daemon cleanup', () => {
     await waitFor(() => expect(fetchProjectDesignSystemPackageAudit).toHaveBeenCalledWith('project-ds-pass'));
     expect(streamViaDaemon).toHaveBeenCalledTimes(1);
     expect(window.sessionStorage.getItem('od:design-system-audit-auto-repair:project-ds-pass')).toBeNull();
+  });
+
+  it('persists API multi-file artifacts into project files and opens the entry file', async () => {
+    listConversations.mockResolvedValue([{ id: 'conv-api', title: 'Conversation' }]);
+    listMessages.mockResolvedValue([]);
+    fetchPreviewComments.mockResolvedValue([]);
+    loadTabs.mockResolvedValue({ tabs: [], activeTabId: null });
+    fetchProjectFiles.mockResolvedValue([]);
+    fetchLiveArtifacts.mockResolvedValue([]);
+    fetchSkill.mockResolvedValue(null);
+    fetchDesignSystem.mockResolvedValue(null);
+    getTemplate.mockResolvedValue(null);
+    listActiveChatRuns.mockResolvedValue([]);
+    writeProjectTextFile.mockImplementation(
+      async (_projectId: string, name: string, _content: string, options?: { artifactManifest?: unknown }) => ({
+        artifactManifest: options?.artifactManifest,
+        kind: /\.html?$/i.test(name) ? 'html' : 'text',
+        mime: /\.html?$/i.test(name) ? 'text/html' : 'text/plain',
+        mtime: Date.now(),
+        name,
+        size: 100,
+      }),
+    );
+
+    const payload = {
+      entry: 'index.html',
+      files: [
+        {
+          name: 'index.html',
+          content: '<!doctype html><html><head><title>Console</title></head><body><a href="login.html">Login</a></body></html>',
+        },
+        {
+          name: 'login.html',
+          content: '<!doctype html><html><head><title>Login</title></head><body><form><input name="phone"></form></body></html>',
+        },
+        {
+          name: 'css/tokens.css',
+          content: ':root { --accent: #2563eb; }',
+        },
+      ],
+    };
+    const artifactText =
+      '<artifact identifier="video-security-console" type="application/vnd.open-design.files+json" title="视频安防后台">' +
+      JSON.stringify(payload) +
+      '</artifact>';
+    streamMessage.mockImplementation(async (...args: unknown[]) => {
+      const handlers = args[4] as {
+        onDelta: (delta: string) => void;
+        onDone: (fullText: string) => void;
+      };
+      handlers.onDelta(artifactText);
+      handlers.onDone(artifactText);
+    });
+
+    chatPaneSpy.mockClear();
+    fileWorkspaceSpy.mockClear();
+
+    render(
+      <ProjectView
+        project={{ id: 'project-api-files', name: 'Project', skillId: null, designSystemId: null } as never}
+        routeFileName={null}
+        config={{
+          mode: 'api',
+          apiProtocol: 'openai',
+          apiKey: 'test-key',
+          model: 'gpt-test',
+          notifications: undefined,
+          agentModels: {},
+        } as never}
+        agents={[]}
+        skills={[]}
+        designTemplates={[]}
+        designSystems={[]}
+        daemonLive
+        onModeChange={() => {}}
+        onAgentChange={() => {}}
+        onAgentModelChange={() => {}}
+        onRefreshAgents={() => {}}
+        onOpenSettings={() => {}}
+        onBack={() => {}}
+        onClearPendingPrompt={() => {}}
+        onTouchProject={() => {}}
+        onProjectChange={() => {}}
+        onProjectsRefresh={() => {}}
+      />,
+    );
+
+    const sendProps = await waitForReadyChatPaneProps();
+    await sendProps.onSend!('设计一个视频安防平台后台', [], []);
+
+    await waitFor(() => expect(streamMessage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(writeProjectTextFile).toHaveBeenCalledTimes(3));
+
+    expect(writeProjectTextFile).toHaveBeenCalledWith(
+      'project-api-files',
+      'index.html',
+      expect.stringContaining('<!doctype html>'),
+      expect.objectContaining({
+        artifactManifest: expect.objectContaining({
+          entry: 'index.html',
+          kind: 'html',
+          renderer: 'html',
+          metadata: expect.objectContaining({
+            artifactType: 'application/vnd.open-design.files+json',
+            identifier: 'video-security-console',
+            multiFileEntry: 'index.html',
+          }),
+        }),
+      }),
+    );
+    expect(writeProjectTextFile).toHaveBeenCalledWith(
+      'project-api-files',
+      'login.html',
+      expect.stringContaining('<form>'),
+      expect.objectContaining({
+        artifactManifest: expect.objectContaining({
+          entry: 'login.html',
+          kind: 'html',
+        }),
+      }),
+    );
+    expect(writeProjectTextFile).toHaveBeenCalledWith(
+      'project-api-files',
+      'css/tokens.css',
+      ':root { --accent: #2563eb; }',
+      expect.any(Object),
+    );
+    await waitFor(() => {
+      expect(fileWorkspaceSpy.mock.calls.at(-1)?.[0]?.openRequest?.name).toBe('index.html');
+    });
+  });
+
+  it('persists API multi-file artifacts when the model emits a bracketed artifact tag', async () => {
+    listConversations.mockResolvedValue([{ id: 'conv-api-bracket', title: 'Conversation' }]);
+    listMessages.mockResolvedValue([]);
+    fetchPreviewComments.mockResolvedValue([]);
+    loadTabs.mockResolvedValue({ tabs: [], activeTabId: null });
+    fetchProjectFiles.mockResolvedValue([projectFile('index.html', 'html', 1)]);
+    fetchLiveArtifacts.mockResolvedValue([]);
+    fetchSkill.mockResolvedValue(null);
+    fetchDesignSystem.mockResolvedValue(null);
+    getTemplate.mockResolvedValue(null);
+    listActiveChatRuns.mockResolvedValue([]);
+    writeProjectTextFile.mockImplementation(
+      async (_projectId: string, name: string, _content: string, options?: { artifactManifest?: unknown }) => ({
+        artifactManifest: options?.artifactManifest,
+        kind: /\.html?$/i.test(name) ? 'html' : 'text',
+        mime: /\.html?$/i.test(name) ? 'text/html' : 'text/plain',
+        mtime: Date.now(),
+        name,
+        size: 100,
+      }),
+    );
+
+    const payload = {
+      entry: 'index.html',
+      files: [
+        {
+          path: 'index.html',
+          content: '<!doctype html><html><head><title>Admin</title></head><body><a href="login.html">Login</a></body></html>',
+        },
+        {
+          path: 'login.html',
+          content: '<!doctype html><html><head><title>Login</title></head><body><form><input name="phone"></form></body></html>',
+        },
+      ],
+    };
+    const artifactText =
+      '[artifact type="application/vnd.open-design.files+json" identifier="video-surveillance-platform"]\n' +
+      JSON.stringify(payload) +
+      '\n</artifact>';
+    streamMessage.mockImplementation(async (...args: unknown[]) => {
+      const handlers = args[4] as {
+        onDelta: (delta: string) => void;
+        onDone: (fullText: string) => void;
+      };
+      handlers.onDelta(artifactText);
+      handlers.onDone(artifactText);
+    });
+
+    chatPaneSpy.mockClear();
+    fileWorkspaceSpy.mockClear();
+
+    render(
+      <ProjectView
+        project={{ id: 'project-api-bracket-files', name: 'Project', skillId: null, designSystemId: null } as never}
+        routeFileName={null}
+        config={{
+          mode: 'api',
+          apiProtocol: 'openai',
+          apiKey: 'test-key',
+          model: 'gpt-test',
+          notifications: undefined,
+          agentModels: {},
+        } as never}
+        agents={[]}
+        skills={[]}
+        designTemplates={[]}
+        designSystems={[]}
+        daemonLive
+        onModeChange={() => {}}
+        onAgentChange={() => {}}
+        onAgentModelChange={() => {}}
+        onRefreshAgents={() => {}}
+        onOpenSettings={() => {}}
+        onBack={() => {}}
+        onClearPendingPrompt={() => {}}
+        onTouchProject={() => {}}
+        onProjectChange={() => {}}
+        onProjectsRefresh={() => {}}
+      />,
+    );
+
+    const sendProps = await waitForReadyChatPaneProps();
+    await sendProps.onSend!('加一个登录页并联动', [], []);
+
+    await waitFor(() => expect(writeProjectTextFile).toHaveBeenCalledTimes(2));
+    expect(writeProjectTextFile).toHaveBeenCalledWith(
+      'project-api-bracket-files',
+      'login.html',
+      expect.stringContaining('<form>'),
+      expect.objectContaining({
+        artifactManifest: expect.objectContaining({ entry: 'login.html' }),
+      }),
+    );
+    await waitFor(() => {
+      expect(fileWorkspaceSpy.mock.calls.at(-1)?.[0]?.openRequest?.name).toBe('index.html');
+    });
   });
 
   // Sister check: without the auto-send flag, the composer should still
