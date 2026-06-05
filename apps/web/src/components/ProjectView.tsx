@@ -254,6 +254,7 @@ const CHAT_PANEL_WIDTH_STORAGE_KEY = 'open-design.project.chatPanelWidth';
 const DEFAULT_CHAT_PANEL_WIDTH = 460;
 const MIN_CHAT_PANEL_WIDTH = 345;
 const MAX_CHAT_PANEL_WIDTH = 720;
+const API_ACTIVE_FILE_CONTEXT_MAX_CHARS = 24_000;
 const MIN_WORKSPACE_PANEL_WIDTH = 400;
 const SPLIT_RESIZE_HANDLE_WIDTH = 8;
 const CHAT_PANEL_KEYBOARD_STEP = 16;
@@ -1141,7 +1142,10 @@ export function ProjectView({
   const persistArtifact = useCallback(
     async (art: Artifact, projectFilesSnapshot?: ProjectFile[]) => {
       if (isMultiFileArtifactType(art.artifactType)) {
-        const parsed = parseMultiFileArtifact(art.html);
+        const currentProjectFiles = projectFilesSnapshot ?? projectFilesRef.current;
+        const parsed = parseMultiFileArtifact(art.html, {
+          existingFiles: currentProjectFiles.map((file) => file.name),
+        });
         if (!parsed.ok) {
           setError(`Refused to save multi-file artifact "${art.identifier || art.title || 'untitled'}": ${parsed.reason}`);
           return;
@@ -1587,6 +1591,20 @@ export function ProjectView({
     } else {
       setAudioVoiceOptionsError(null);
     }
+    const apiProjectContext = config.mode === 'api'
+      ? await buildApiProjectContext({
+          activeFileName: openTabsState.active,
+          projectFiles,
+          readProjectHtml,
+        })
+      : '';
+    const projectInstructions = [
+      apiProjectContext,
+      project.customInstructions,
+    ]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+      .join('\n\n---\n\n');
+
     return composeSystemPrompt({
       skillBody,
       skillName,
@@ -1601,13 +1619,16 @@ export function ProjectView({
       streamFormat: config.mode === 'api' ? 'plain' : undefined,
       locale,
       userInstructions: config.customInstructions,
-      projectInstructions: project.customInstructions,
+      projectInstructions,
     });
   }, [
     project.skillId,
     project.designSystemId,
     project.metadata,
     project.customInstructions,
+    projectFiles,
+    openTabsState.active,
+    readProjectHtml,
     skills,
     designTemplates,
     designSystems,
@@ -4345,6 +4366,8 @@ export function ProjectView({
   const projectInstructionsPreview = compactInlinePreview(projectInstructions);
   const executionControls = (
     <>
+      {/*
+      Hidden for now: project instructions add button in the composer controls.
       {!hasProjectInstructions ? (
         <button
           type="button"
@@ -4360,6 +4383,7 @@ export function ProjectView({
           <Icon name="sliders" size={15} />
         </button>
       ) : null}
+      */}
       <AvatarMenu
         config={config}
         agents={agents}
@@ -4387,7 +4411,10 @@ export function ProjectView({
         backLabel={t('project.backToProjects')}
         fileActionsBefore={(
           <>
+            {/*
+            Hidden for now: "Open in editor" handoff menu.
             <HandoffButton projectId={project.id} />
+            */}
             <button
               type="button"
               className="settings-icon-btn"
@@ -4433,6 +4460,8 @@ export function ProjectView({
               selectedId={project.designSystemId ?? null}
               onChange={handleChangeDesignSystemId}
             />
+            {/*
+            Hidden for now: project instructions chip in the project title.
             {hasProjectInstructions ? (
               <button
                 type="button"
@@ -4447,9 +4476,12 @@ export function ProjectView({
                 <span>&quot;{projectInstructionsPreview}&quot;</span>
               </button>
             ) : null}
+            */}
           </span>
         </div>
       </AppChromeHeader>
+      {/*
+      Hidden for now: project instructions review bar.
       {instructionsMode === 'review' && (
         <div className="project-instructions-bar project-instructions-review">
           <div className="project-instructions-bar-head">
@@ -4484,6 +4516,9 @@ export function ProjectView({
           </div>
         </div>
       )}
+      */}
+      {/*
+      Hidden for now: project instructions edit bar.
       {instructionsMode === 'edit' && (
         <div className="project-instructions-bar">
           <label className="project-instructions-label">{t('project.customInstructions')}</label>
@@ -4511,6 +4546,7 @@ export function ProjectView({
           </div>
         </div>
       )}
+      */}
       {/* ProjectActionsToolbar removed per 00efdcba — hide finalize-design
           toolbar from project header. Restore from cf1cd9bb if product
           wants the Finalize + Continue-in-CLI buttons back in the chrome. */}
@@ -4744,6 +4780,80 @@ function isGenericHtmlArtifactName(baseName: string, art: Artifact): boolean {
     || baseName === 'generated-html'
     || baseName === 'artifact'
   );
+}
+
+export async function buildApiProjectContext(input: {
+  activeFileName: string | null;
+  projectFiles: ProjectFile[];
+  readProjectHtml: (name: string) => Promise<string | null>;
+}): Promise<string> {
+  const visibleFiles = input.projectFiles
+    .filter((file) => !file.name.endsWith('.artifact.json'))
+    .slice(0, 40);
+  if (visibleFiles.length === 0) {
+    return [
+      '## Current project files (API/BYOK compact context)',
+      'No project files are present yet. For the first HTML prototype, create `index.html`.',
+    ].join('\n');
+  }
+
+  const activeFile = resolveApiActiveFile(input.activeFileName, visibleFiles);
+  const lines = [
+    '## Current project files (API/BYOK compact context)',
+    'Use this as the source of truth for follow-up edits. For small changes, preserve all existing files and output only the affected file(s). Do not regenerate every page unless the user explicitly asks for a redesign or full rebuild.',
+    'If you use `application/vnd.open-design.files+json`, include only files that must be created or changed; omitted files remain unchanged on disk.',
+    'When changing an existing HTML file, start from the supplied source and preserve unrelated markup, styles, scripts, and layout while making the smallest necessary change.',
+    'When a change must coordinate multiple files (for example login.html plus index.html auth links), include exactly those affected files.',
+    '',
+    `Files: ${visibleFiles.map((file) => file.name).join(', ')}`,
+    activeFile ? `Active file: ${activeFile.name}` : 'Active file: none',
+  ];
+
+  const htmlFilesForContext = selectApiContextHtmlFiles(activeFile, visibleFiles);
+  for (const file of htmlFilesForContext) {
+    const source = await input.readProjectHtml(file.name);
+    if (source) {
+      lines.push(
+        '',
+        `${file.name === activeFile?.name ? 'Current active' : 'Current entry'} HTML source (${file.name}; truncated if needed):`,
+        '```html',
+        clipApiProjectContextSource(source, API_ACTIVE_FILE_CONTEXT_MAX_CHARS),
+        '```',
+      );
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function resolveApiActiveFile(activeFileName: string | null, files: ProjectFile[]): ProjectFile | null {
+  if (activeFileName) {
+    const active = files.find((file) => file.name === activeFileName);
+    if (active) return active;
+  }
+  return files.find((file) => file.name === 'index.html')
+    ?? files.find((file) => file.kind === 'html' || /\.html?$/i.test(file.name))
+    ?? files[0]
+    ?? null;
+}
+
+function selectApiContextHtmlFiles(activeFile: ProjectFile | null, files: ProjectFile[]): ProjectFile[] {
+  const selected: ProjectFile[] = [];
+  const addHtml = (file: ProjectFile | null | undefined) => {
+    if (!file) return;
+    if (!(file.kind === 'html' || /\.html?$/i.test(file.name))) return;
+    if (selected.some((entry) => entry.name === file.name)) return;
+    selected.push(file);
+  };
+
+  addHtml(activeFile);
+  addHtml(files.find((file) => file.name === 'index.html'));
+  return selected;
+}
+
+function clipApiProjectContextSource(source: string, maxChars: number): string {
+  if (source.length <= maxChars) return source;
+  return `${source.slice(0, maxChars)}\n\n[Open Design truncated ${source.length - maxChars} chars from the active file context.]`;
 }
 
 export function findExistingArtifactProjectFile(

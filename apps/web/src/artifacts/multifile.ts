@@ -14,6 +14,10 @@ export type MultiFileArtifactResult =
   | { ok: true; payload: MultiFileArtifactPayload }
   | { ok: false; reason: string };
 
+export interface ParseMultiFileArtifactOptions {
+  existingFiles?: string[];
+}
+
 const MAX_FILES = 80;
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_TOTAL_BYTES = 2 * 1024 * 1024;
@@ -33,7 +37,10 @@ export function isMultiFileArtifactType(type: string | undefined): boolean {
   return (type ?? '').trim().toLowerCase() === MULTI_FILE_ARTIFACT_TYPE;
 }
 
-export function parseMultiFileArtifact(content: string): MultiFileArtifactResult {
+export function parseMultiFileArtifact(
+  content: string,
+  options: ParseMultiFileArtifactOptions = {},
+): MultiFileArtifactResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
@@ -88,11 +95,13 @@ export function parseMultiFileArtifact(content: string): MultiFileArtifactResult
     ? normalizeProjectFileName(record.entry)
     : null;
   if (entry && !entry.ok) return entry;
-  if (entry && !seen.has(entry.name)) {
+  const existingFiles = new Set((options.existingFiles ?? []).map((name) => name.trim()));
+  if (entry && !seen.has(entry.name) && !existingFiles.has(entry.name)) {
     return { ok: false, reason: `entry file is not present in files: ${entry.name}` };
   }
   const hasIndex = seen.has('index.html');
-  if (!hasIndex && files.length > 1) {
+  const existingProjectHasFiles = existingFiles.size > 0;
+  if (!hasIndex && files.length > 1 && !existingProjectHasFiles) {
     return { ok: false, reason: 'multi-file prototype artifacts must include index.html' };
   }
 

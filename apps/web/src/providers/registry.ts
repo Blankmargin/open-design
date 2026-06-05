@@ -77,6 +77,16 @@ export type WebDeployProjectFileResponse = DeployProjectFileResponse;
 export type WebCloudflarePagesDeploySelection = CloudflarePagesDeploySelection;
 export type WebCloudflarePagesZonesResponse = CloudflarePagesZonesResponse;
 
+// Hidden for now: all other design systems remain registered by the daemon,
+// but the frontend only exposes Enterprise Console in pickers and galleries.
+export const FRONTEND_VISIBLE_DESIGN_SYSTEM_ID = 'enterprise-console';
+
+function filterFrontendVisibleDesignSystems(
+  systems: DesignSystemSummary[],
+): DesignSystemSummary[] {
+  return systems.filter((system) => system.id === FRONTEND_VISIBLE_DESIGN_SYSTEM_ID);
+}
+
 export function isDeployProviderId(value: unknown): value is WebDeployProviderId {
   return typeof value === 'string' && (DEPLOY_PROVIDER_IDS as readonly string[]).includes(value);
 }
@@ -365,7 +375,10 @@ export async function fetchDesignSystemsResult(): Promise<DesignSystemsResult> {
     const resp = await fetch('/api/design-systems');
     if (!resp.ok) return { ok: false };
     const json = (await resp.json()) as { designSystems?: DesignSystemSummary[] };
-    return { ok: true, designSystems: json.designSystems ?? [] };
+    return {
+      ok: true,
+      designSystems: filterFrontendVisibleDesignSystems(json.designSystems ?? []),
+    };
   } catch {
     return { ok: false };
   }

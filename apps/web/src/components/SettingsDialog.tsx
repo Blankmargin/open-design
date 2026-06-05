@@ -169,6 +169,25 @@ export type SettingsSection =
   | 'library'
   | 'about';
 
+// Hidden for now: remove entries from this set and restore the commented
+// sidebar/content blocks below to bring these settings sections back.
+const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSection>([
+  'instructions',
+  'skills',
+  'mcpClient',
+  'composio',
+  'integrations',
+  'critiqueTheater',
+  'notifications',
+  'pet',
+  'privacy',
+  'about',
+]);
+
+function visibleSettingsSection(section: SettingsSection): SettingsSection {
+  return HIDDEN_SETTINGS_SECTIONS.has(section) ? 'execution' : section;
+}
+
 // One-shot focus hint when opening the dialog. `'amr'` scrolls the AMR agent
 // card into view on the execution section and plays a highlight (plus a
 // sign-in coachmark when the user has not authorized AMR yet).
@@ -894,7 +913,9 @@ export function SettingsDialog({
     };
   }, []);
   const [showApiKey, setShowApiKey] = useState(false);
-  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
+  const [activeSection, setActiveSection] = useState<SettingsSection>(() =>
+    visibleSettingsSection(initialSection),
+  );
   // Scroll the right-hand content pane back to the top whenever the user
   // picks a different settings section. Without this, switching from a
   // long section the user had scrolled (e.g. Library) into a short one
@@ -1027,7 +1048,7 @@ export function SettingsDialog({
   // routes through this when the MCP tab is active so the user can press the
   // single Save button at the bottom instead of hunting for the inner one.
   useEffect(() => {
-    setActiveSection(initialSection);
+    setActiveSection(visibleSettingsSection(initialSection));
   }, [initialSection]);
 
   // settings_view — fires whenever the active section changes (and once on
@@ -2455,6 +2476,8 @@ export function SettingsDialog({
                 <small>{`${t('settings.localCli')} / ${t('settings.modeApiMeta')}`}</small>
               </span>
             </button>
+            {/*
+            Hidden for now: Instructions / Rules settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'instructions' ? ' active' : ''}`}
@@ -2466,6 +2489,7 @@ export function SettingsDialog({
                 <small>Fixed assistant behavior</small>
               </span>
             </button>
+            */}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'memory' ? ' active' : ''}`}
@@ -2488,6 +2512,8 @@ export function SettingsDialog({
                 <small>Image / video / audio</small>
               </span>
             </button>
+            {/*
+            Hidden for now: Skills settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'skills' ? ' active' : ''}`}
@@ -2499,6 +2525,9 @@ export function SettingsDialog({
                 <small>{t('settings.skillsHint')}</small>
               </span>
             </button>
+            */}
+            {/*
+            Hidden for now: External MCP settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'mcpClient' ? ' active' : ''}`}
@@ -2510,6 +2539,9 @@ export function SettingsDialog({
                 <small>{t('settings.externalMcpHint')}</small>
               </span>
             </button>
+            */}
+            {/*
+            Hidden for now: Connectors settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'composio' ? ' active' : ''}`}
@@ -2521,6 +2553,9 @@ export function SettingsDialog({
                 <small>{t('settings.connectorsNavHint')}</small>
               </span>
             </button>
+            */}
+            {/*
+            Hidden for now: MCP Server settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
@@ -2532,6 +2567,7 @@ export function SettingsDialog({
                 <small>{t('settings.mcpServerHint')}</small>
               </span>
             </button>
+            */}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'language' ? ' active' : ''}`}
@@ -2554,6 +2590,8 @@ export function SettingsDialog({
                 <small>{t('settings.appearanceHint')}</small>
               </span>
             </button>
+            {/*
+            Hidden for now: Design Review Jury settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'critiqueTheater' ? ' active' : ''}`}
@@ -2565,6 +2603,9 @@ export function SettingsDialog({
                 <small>{t('critiqueTheater.settingsNavHint')}</small>
               </span>
             </button>
+            */}
+            {/*
+            Hidden for now: Notifications settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'notifications' ? ' active' : ''}`}
@@ -2576,6 +2617,9 @@ export function SettingsDialog({
                 <small>{t('settings.notificationsHint')}</small>
               </span>
             </button>
+            */}
+            {/*
+            Hidden for now: Pet settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'pet' ? ' active' : ''}`}
@@ -2587,6 +2631,7 @@ export function SettingsDialog({
                 <small>{t('pet.navHint')}</small>
               </span>
             </button>
+            */}
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'designSystems' ? ' active' : ''}`}
@@ -2609,6 +2654,8 @@ export function SettingsDialog({
                 <small>{t('settings.projectLocationsHint')}</small>
               </span>
             </button>
+            {/*
+            Hidden for now: Privacy settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'privacy' ? ' active' : ''}`}
@@ -2620,6 +2667,9 @@ export function SettingsDialog({
                 <small>{t('settings.privacyHint')}</small>
               </span>
             </button>
+            */}
+            {/*
+            Hidden for now: About settings nav.
             <button
               type="button"
               className={`settings-nav-item${activeSection === 'about' ? ' active' : ''}`}
@@ -2631,6 +2681,7 @@ export function SettingsDialog({
                 <small>{t('settings.aboutHint')}</small>
               </span>
             </button>
+            */}
           </aside>
           <div className="settings-content" ref={settingsContentRef}>
           {activeSection === 'execution' ? (
@@ -3602,10 +3653,18 @@ export function SettingsDialog({
               }}
             />
           ) : null}
+          {/*
+          Hidden for now: MCP Server settings content.
           {activeSection === 'integrations' ? <IntegrationsSection /> : null}
+          */}
 
+          {/*
+          Hidden for now: External MCP settings content.
           {activeSection === 'mcpClient' ? <McpClientSection /> : null}
+          */}
 
+          {/*
+          Hidden for now: Connectors settings content.
           {activeSection === 'composio' ? (
             <ConnectorSection
               cfg={cfg}
@@ -3624,6 +3683,7 @@ export function SettingsDialog({
               }
             />
           ) : null}
+          */}
 
           {activeSection === 'routines' ? <RoutinesSection onClose={onClose} /> : null}
 
@@ -3634,7 +3694,11 @@ export function SettingsDialog({
               composioApiKeyConfigured={Boolean(cfg.composio?.apiKeyConfigured)}
               daemonMediaProviders={daemonMediaProviders}
               daemonMediaProvidersFetchState={daemonMediaProvidersFetchState}
-              onOpenComposioSection={() => setActiveSection('composio')}
+              onOpenComposioSection={() => {
+                // Hidden for now: previously opened the Connectors settings section.
+                // setActiveSection('composio');
+                setActiveSection(visibleSettingsSection('composio'));
+              }}
               onLeaveForOrbitProject={(runConfig) => {
                 // Persist any in-flight Orbit edits (toggle / time) before
                 // navigating away so they aren't silently lost. The autosave
@@ -3692,18 +3756,29 @@ export function SettingsDialog({
             <AppearanceSection cfg={cfg} setCfg={setCfg} />
           ) : null}
 
+          {/*
+          Hidden for now: Design Review Jury settings content.
           {activeSection === 'critiqueTheater' ? (
             <CritiqueTheaterSection />
           ) : null}
+          */}
 
+          {/*
+          Hidden for now: Notifications settings content.
           {activeSection === 'notifications' ? (
             <NotificationsSection cfg={cfg} setCfg={setCfg} />
           ) : null}
+          */}
 
+          {/*
+          Hidden for now: Pet settings content.
           {activeSection === 'pet' ? (
             <PetSettings cfg={cfg} setCfg={setCfg} />
           ) : null}
+          */}
 
+          {/*
+          Hidden for now: Skills settings content.
           {activeSection === 'skills' ? (
             <SkillsSection
               cfg={cfg}
@@ -3712,6 +3787,7 @@ export function SettingsDialog({
               onSkillsChanged={onSkillsChanged}
             />
           ) : null}
+          */}
 
           {activeSection === 'designSystems' ? (
             <DesignSystemsSection
@@ -3725,6 +3801,8 @@ export function SettingsDialog({
             <ProjectLocationsSection cfg={cfg} setCfg={setCfg} onProjectsRefresh={onProjectsRefresh} />
           ) : null}
 
+          {/*
+          Hidden for now: Instructions / Rules settings content.
           {activeSection === 'instructions' ? (
             <section className="settings-section settings-section-card instructions-rules-section">
               <div className="memory-field-block instructions-rules-card">
@@ -3754,19 +3832,29 @@ export function SettingsDialog({
               </div>
             </section>
           ) : null}
+          */}
 
           {activeSection === 'memory' ? (
             <MemorySection
-              onOpenConnectors={() => setActiveSection('composio')}
+              onOpenConnectors={() => {
+                // Hidden for now: previously opened the Connectors settings section.
+                // setActiveSection('composio');
+                setActiveSection(visibleSettingsSection('composio'));
+              }}
               chatAgentId={cfg.mode === 'daemon' ? cfg.agentId ?? null : null}
               chatModel={selectedMemoryChatModel}
             />
           ) : null}
 
+          {/*
+          Hidden for now: Privacy settings content.
           {activeSection === 'privacy' ? (
             <PrivacySection cfg={cfg} setCfg={setCfg} />
           ) : null}
+          */}
 
+          {/*
+          Hidden for now: About settings content.
           {activeSection === 'about' ? (
             <section className="settings-section">
               {appVersionInfo ? (
@@ -3818,6 +3906,7 @@ export function SettingsDialog({
               </div>
             </section>
           ) : null}
+          */}
           {aboutToast ? (
             <Toast
               message={aboutToast}

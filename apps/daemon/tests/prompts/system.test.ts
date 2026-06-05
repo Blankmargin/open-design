@@ -303,6 +303,11 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('application/vnd.open-design.files+json');
     expect(prompt).toContain('Include `index.html` as `entry`');
     expect(prompt).toContain('make `index.html` link to child pages');
+    expect(prompt).toContain('For follow-up edits to an existing project');
+    expect(prompt).toContain('include only created or changed files in `files[]`');
+    expect(prompt).toContain('Files omitted from a multi-file artifact remain unchanged on disk');
+    expect(prompt).toContain('preserve unrelated markup, styles, scripts, and layout');
+    expect(prompt).toContain('smallest necessary change');
   });
 
   it('uses the primary skill surface when composed skill modes conflict', () => {

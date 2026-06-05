@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ProjectView,
   artifactFileNameFor,
+  buildApiProjectContext,
   clearStreamingConversationMarker,
   finalizeActiveAssistantMessagesOnStop,
   findExistingArtifactProjectFile,
@@ -244,6 +245,73 @@ describe('artifactFileNameFor', () => {
       },
       [projectFile('index.html', 'html', 1)],
     )).toBe('generated-html.html');
+  });
+});
+
+describe('buildApiProjectContext', () => {
+  it('tells API mode to create index.html when the project has no files', async () => {
+    const context = await buildApiProjectContext({
+      activeFileName: null,
+      projectFiles: [],
+      readProjectHtml: vi.fn(),
+    });
+
+    expect(context).toContain('No project files are present yet');
+    expect(context).toContain('create `index.html`');
+  });
+
+  it('includes compact active HTML and incremental edit rules for existing projects', async () => {
+    const context = await buildApiProjectContext({
+      activeFileName: 'index.html',
+      projectFiles: [
+        projectFile('index.html', 'html', 1),
+        projectFile('login.html', 'html', 2),
+        projectFile('index.html.artifact.json', 'text', 3),
+      ],
+      readProjectHtml: vi.fn(async () => '<!doctype html><html><body><h1>Original app</h1></body></html>'),
+    });
+
+    expect(context).toContain('For small changes, preserve all existing files');
+    expect(context).toContain('output only the affected file(s)');
+    expect(context).toContain('omitted files remain unchanged on disk');
+    expect(context).toContain('preserve unrelated markup, styles, scripts, and layout');
+    expect(context).toContain('Files: index.html, login.html');
+    expect(context).toContain('Active file: index.html');
+    expect(context).toContain('<h1>Original app</h1>');
+    expect(context).not.toContain('index.html.artifact.json');
+  });
+
+  it('includes index.html context when another HTML file is active', async () => {
+    const readProjectHtml = vi.fn(async (name: string) => (
+      name === 'login.html'
+        ? '<!doctype html><html><body><form>Login</form></body></html>'
+        : '<!doctype html><html><body><main>Original dashboard</main></body></html>'
+    ));
+    const context = await buildApiProjectContext({
+      activeFileName: 'login.html',
+      projectFiles: [
+        projectFile('index.html', 'html', 1),
+        projectFile('login.html', 'html', 2),
+      ],
+      readProjectHtml,
+    });
+
+    expect(readProjectHtml).toHaveBeenCalledWith('login.html');
+    expect(readProjectHtml).toHaveBeenCalledWith('index.html');
+    expect(context).toContain('Current active HTML source (login.html');
+    expect(context).toContain('Current entry HTML source (index.html');
+    expect(context).toContain('<main>Original dashboard</main>');
+  });
+
+  it('truncates long active HTML source in API project context', async () => {
+    const context = await buildApiProjectContext({
+      activeFileName: 'index.html',
+      projectFiles: [projectFile('index.html', 'html', 1)],
+      readProjectHtml: vi.fn(async () => `<!doctype html>${'x'.repeat(25_000)}`),
+    });
+
+    expect(context).toContain('[Open Design truncated');
+    expect(context.length).toBeLessThan(25_000);
   });
 });
 
@@ -1121,6 +1189,19 @@ describe('ProjectView daemon cleanup', () => {
     fetchDesignSystem.mockResolvedValue(null);
     getTemplate.mockResolvedValue(null);
     listActiveChatRuns.mockResolvedValue([]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes('/api/memory/system-prompt')) {
+        return new Response(JSON.stringify({ body: '' }), { status: 200 });
+      }
+      if (url.includes('/raw/index.html')) {
+        return new Response(
+          '<!doctype html><html><body><main id="existing-app">Original admin</main></body></html>',
+          { status: 200, headers: { 'Content-Type': 'text/html' } },
+        );
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
     writeProjectTextFile.mockImplementation(
       async (_projectId: string, name: string, _content: string, options?: { artifactManifest?: unknown }) => ({
         artifactManifest: options?.artifactManifest,
@@ -1161,51 +1242,60 @@ describe('ProjectView daemon cleanup', () => {
     chatPaneSpy.mockClear();
     fileWorkspaceSpy.mockClear();
 
-    render(
-      <ProjectView
-        project={{ id: 'project-api-bracket-files', name: 'Project', skillId: null, designSystemId: null } as never}
-        routeFileName={null}
-        config={{
-          mode: 'api',
-          apiProtocol: 'openai',
-          apiKey: 'test-key',
-          model: 'gpt-test',
-          notifications: undefined,
-          agentModels: {},
-        } as never}
-        agents={[]}
-        skills={[]}
-        designTemplates={[]}
-        designSystems={[]}
-        daemonLive
-        onModeChange={() => {}}
-        onAgentChange={() => {}}
-        onAgentModelChange={() => {}}
-        onRefreshAgents={() => {}}
-        onOpenSettings={() => {}}
-        onBack={() => {}}
-        onClearPendingPrompt={() => {}}
-        onTouchProject={() => {}}
-        onProjectChange={() => {}}
-        onProjectsRefresh={() => {}}
-      />,
-    );
+    try {
+      render(
+        <ProjectView
+          project={{ id: 'project-api-bracket-files', name: 'Project', skillId: null, designSystemId: null } as never}
+          routeFileName={null}
+          config={{
+            mode: 'api',
+            apiProtocol: 'openai',
+            apiKey: 'test-key',
+            model: 'gpt-test',
+            notifications: undefined,
+            agentModels: {},
+          } as never}
+          agents={[]}
+          skills={[]}
+          designTemplates={[]}
+          designSystems={[]}
+          daemonLive
+          onModeChange={() => {}}
+          onAgentChange={() => {}}
+          onAgentModelChange={() => {}}
+          onRefreshAgents={() => {}}
+          onOpenSettings={() => {}}
+          onBack={() => {}}
+          onClearPendingPrompt={() => {}}
+          onTouchProject={() => {}}
+          onProjectChange={() => {}}
+          onProjectsRefresh={() => {}}
+        />,
+      );
 
-    const sendProps = await waitForReadyChatPaneProps();
-    await sendProps.onSend!('加一个登录页并联动', [], []);
+      const sendProps = await waitForReadyChatPaneProps();
+      await sendProps.onSend!('加一个登录页并联动', [], []);
 
-    await waitFor(() => expect(writeProjectTextFile).toHaveBeenCalledTimes(2));
-    expect(writeProjectTextFile).toHaveBeenCalledWith(
-      'project-api-bracket-files',
-      'login.html',
-      expect.stringContaining('<form>'),
-      expect.objectContaining({
-        artifactManifest: expect.objectContaining({ entry: 'login.html' }),
-      }),
-    );
-    await waitFor(() => {
-      expect(fileWorkspaceSpy.mock.calls.at(-1)?.[0]?.openRequest?.name).toBe('index.html');
-    });
+      await waitFor(() => expect(writeProjectTextFile).toHaveBeenCalledTimes(2));
+      const systemPrompt = streamMessage.mock.calls.at(-1)?.[1] as string;
+      expect(systemPrompt).toContain('## Current project files (API/BYOK compact context)');
+      expect(systemPrompt).toContain('Files: index.html');
+      expect(systemPrompt).toContain('include only files that must be created or changed');
+      expect(systemPrompt).toContain('omitted files remain unchanged on disk');
+      expect(writeProjectTextFile).toHaveBeenCalledWith(
+        'project-api-bracket-files',
+        'login.html',
+        expect.stringContaining('<form>'),
+        expect.objectContaining({
+          artifactManifest: expect.objectContaining({ entry: 'login.html' }),
+        }),
+      );
+      await waitFor(() => {
+        expect(fileWorkspaceSpy.mock.calls.at(-1)?.[0]?.openRequest?.name).toBe('index.html');
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   // Sister check: without the auto-send flag, the composer should still

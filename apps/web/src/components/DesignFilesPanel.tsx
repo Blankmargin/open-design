@@ -1023,10 +1023,13 @@ export function DesignFilesPanel({
       </div>
     ) : (
       <div className="df-actions">
+        {/*
+        Hidden for now: New sketch action in the Design Files toolbar.
         <button type="button" onClick={onNewSketch} title={t('designFiles.newSketch')}>
           <Icon name="pencil" size={13} />
           <span>{t('designFiles.newSketch')}</span>
         </button>
+        */}
         <button type="button" onClick={onPaste} title={t('designFiles.paste.title')}>
           <Icon name="copy" size={13} />
           <span>{t('designFiles.paste.label')}</span>
@@ -1215,6 +1218,8 @@ export function DesignFilesPanel({
                 <span className="df-empty-title">
                   {t('designFiles.empty')}
                 </span>
+                {/*
+                Hidden for now: New sketch action in the Design Files empty state.
                 <button
                   type="button"
                   className="df-empty-cta"
@@ -1225,6 +1230,7 @@ export function DesignFilesPanel({
                   <Icon name="pencil" size={13} />
                   <span>{t('designFiles.newSketch')}</span>
                 </button>
+                */}
               </div>
             </div>
           ) : (

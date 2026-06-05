@@ -392,7 +392,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const composingRef = useRef(false);
     const toolsMenuRef = useRef<HTMLDivElement | null>(null);
     const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
-    const petEnabled = Boolean(onAdoptPet && onTogglePet);
+    // Hidden for now: composer pet controls.
+    // const petEnabled = Boolean(onAdoptPet && onTogglePet);
+    const petEnabled = false;
     const [petMenuOpen, setPetMenuOpen] = useState(false);
     const petWrapRef = useRef<HTMLDivElement | null>(null);
     const [petMenuStyle, setPetMenuStyle] = useState<React.CSSProperties>({});
@@ -692,6 +694,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           argHint: t('pet.slashSearchArg'),
         });
       }
+      /*
+      Hidden for now: pet slash commands.
       if (petEnabled) {
         list.push(
           {
@@ -726,6 +730,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           },
         );
       }
+      */
       return list;
     }, [petEnabled, researchAvailable, t, enabledMcpServers, onOpenMcpSettings]);
 
@@ -1332,9 +1337,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       // Detect a fresh @ at start or after whitespace; capture the typed
       // query up to the cursor.
       const before = value.slice(0, cursor);
+      /*
+      Hidden for now: @ mention picker trigger.
       const m = /(^|\s)@([^\s@]*)$/.exec(before);
       if (m) setMention({ q: m[2] ?? "", cursor });
       else setMention(null);
+      */
+      setMention(null);
       // Slash-command popover — open as soon as the draft starts with
       // `/` (and the cursor is still inside the bare command token, no
       // space yet). Closes once the user commits a space or moves past
@@ -1588,15 +1597,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       if (sendDisabled) return;
       // Intercept `/pet …` and `/mcp` before sending so the slash command
       // never hits the agent — these are local UX hooks, not model prompts.
+      /*
+      Hidden for now: local pet slash command handling.
       if (tryHandlePetSlash()) return;
+      */
       if (tryHandleMcpSlash()) return;
       // `/hatch <concept>` expands into the canonical hatch-pet skill
       // prompt and *is* sent to the agent — the agent runs the skill,
       // packages a Codex pet under `~/.codex/pets/`, and the user
       // adopts it from "Recently hatched" in pet settings afterwards.
       const contextMeta = currentRunContextMeta();
-      const hatched = expandHatchCommand(prompt);
       const nextCommentAttachments = currentCommentAttachments();
+      /*
+      Hidden for now: hatch-pet slash command expansion.
+      const hatched = expandHatchCommand(prompt);
       if (hatched) {
         if (streaming) return;
         setStreamingAnnotationSendPending(false);
@@ -1604,6 +1618,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         reset();
         return;
       }
+      */
       const search = researchAvailable ? expandSearchCommand(prompt) : null;
       if (search) {
         if (streaming) return;
@@ -1980,6 +1995,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 }}
               />
             </div>
+            {/*
+            Hidden for now: @ mention picker popover.
             {mention ? (
               <MentionPopover
                 files={filteredFiles}
@@ -1996,6 +2013,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 onPickConnector={insertConnectorMention}
               />
             ) : null}
+            */}
             {slash && filteredSlash.length > 0 ? (
               <SlashPopover
                 commands={filteredSlash}
@@ -2019,6 +2037,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 e.target.value = '';
               }}
             />
+            {/*
+            Hidden for now: @ resources/tools button and menu.
             <div className="composer-tools-wrap">
               <button
                 ref={toolsTriggerRef}
@@ -2028,10 +2048,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   setToolsOpen((v) => {
                     const next = !v;
                     if (next) {
-                      // P0 ui_click resources_popover_trigger — only emit on
-                      // the open transition so accidental double-clicks
-                      // don't pair an open + close into a "double tap" the
-                      // dashboard can't interpret.
                       trackChatPanelClick(analytics.track, {
                         page_name: 'chat_panel',
                         area: 'chat_panel',
@@ -2100,25 +2116,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                         plugins={pluginsForComposer}
                         activePluginId={pinnedPluginId}
                         onApply={async (record) => {
-                          // Tools-menu apply: no draft write, so the
-                          // tracked-insertion array gets no new
-                          // entry. The active-plugin switch (which
-                          // drops previously-tracked entries from a
-                          // prior @-popover pick of a different
-                          // plugin, #2929 round 6) is deferred until
-                          // `applyById` resolves successfully so
-                          // that an `onCleared` triggered during the
-                          // in-flight window still sees the
-                          // still-mounted plugin's entries and
-                          // strips them correctly via the
-                          // `getActiveRecord()` filter in
-                          // `onCleared` (#2929 round 9).
-                          //
-                          // No synchronous mutation in this branch
-                          // means no rollback snapshot is needed:
-                          // the failure path is just an early return
-                          // (#2929 round 7's snapshot was needed
-                          // because `setActivePlugin` was eager).
                           const result = await pluginsSectionRef.current?.applyById(
                             record.id,
                             record,
@@ -2213,6 +2210,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 </div>
               ) : null}
             </div>
+            */}
+            {/*
+            Hidden for now: composer pet button and menu.
             {petEnabled ? (
               <div className="composer-pet-wrap" ref={petWrapRef}>
                 <button
@@ -2232,7 +2232,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   aria-label={t('pet.composerTitle')}
                 >
                   <span className="composer-pet-glyph">
-                    {petConfig?.adopted ? (petConfig?.custom?.glyph || '🐾') : '🐾'}
+                    {petConfig?.adopted ? (petConfig?.custom?.glyph || 'paw') : 'paw'}
                   </span>
                   <span className="composer-pet-label">
                     {petConfig?.adopted ? (petConfig?.custom?.name || 'Buddy') : t('pet.composerMenuTitle')}
@@ -2277,6 +2277,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 ) : null}
               </div>
             ) : null}
+            */}
             <button
               className="icon-btn"
               data-testid="chat-attach"

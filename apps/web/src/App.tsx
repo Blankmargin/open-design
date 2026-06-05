@@ -44,6 +44,7 @@ import {
   fetchAppVersionInfo,
   fetchAgents,
   fetchDesignSystems,
+  FRONTEND_VISIBLE_DESIGN_SYSTEM_ID,
   fetchDesignTemplates,
   fetchPromptTemplates,
   fetchSkills,
@@ -575,12 +576,13 @@ function AppInner() {
   // config has merged so we never overwrite a daemon-stored selection.
   useEffect(() => {
     if (!daemonConfigLoaded || dsLoading) return;
-    if (config.designSystemId) return;
     if (designSystems.length === 0) return;
     const id =
-      designSystems.find((d) => d.id === 'default')?.id ?? designSystems[0]!.id;
+      designSystems.find((d) => d.id === FRONTEND_VISIBLE_DESIGN_SYSTEM_ID)?.id
+      ?? designSystems[0]!.id;
+    if (config.designSystemId === id) return;
     setConfig((prev) => {
-      if (prev.designSystemId) return prev;
+      if (prev.designSystemId === id) return prev;
       const next: AppConfig = { ...prev, designSystemId: id };
       saveConfig(next);
       void syncConfigToDaemon(next);

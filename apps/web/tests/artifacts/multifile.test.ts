@@ -90,6 +90,27 @@ describe('multi-file artifacts', () => {
     }
   });
 
+  it('allows follow-up multi-file artifacts to include only changed files when project files already exist', () => {
+    const parsed = parseMultiFileArtifact(JSON.stringify({
+      entry: 'index.html',
+      files: [
+        { name: 'login.html', content: '<!doctype html><html><body>Login</body></html>' },
+      ],
+    }), {
+      existingFiles: ['index.html', 'devices.html'],
+    });
+
+    expect(parsed).toMatchObject({
+      ok: true,
+      payload: {
+        entry: 'index.html',
+        files: [
+          { name: 'login.html', content: expect.stringContaining('Login') },
+        ],
+      },
+    });
+  });
+
   it('summarizes prior multi-file artifacts without retaining file bodies', () => {
     const summary = summarizeMultiFileArtifact(JSON.stringify({
       entry: 'index.html',

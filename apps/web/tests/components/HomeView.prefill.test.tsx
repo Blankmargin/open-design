@@ -664,7 +664,7 @@ describe('HomeView prompt handoff', () => {
     expect(screen.getByTestId('home-hero-footer-option-fidelity')).toBeTruthy();
     expect(screen.getByTestId('home-hero-footer-option-designSystem')).toBeTruthy();
     expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toBe('');
-    expect(screen.getByTestId('home-hero-plugin-presets')).toBeTruthy();
+    expect(screen.queryByTestId('home-hero-plugin-presets')).toBeNull();
     expect(screen.queryByTestId('home-hero-prompt-slot-fidelity')).toBeNull();
     expect(screen.queryByTestId('home-hero-prompt-slot-artifactKind')).toBeNull();
     expect(screen.queryByTestId('home-hero-prompt-slot-designSystem')).toBeNull();
@@ -1086,32 +1086,13 @@ describe('HomeView prompt handoff', () => {
     );
 
     await clearActiveTypeChip();
-    fireEvent.click(await screen.findByTestId('home-hero-rail-deck'));
-    await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Slide deck');
-    });
-    expect(screen.getByTestId('home-hero-plugin-presets')).toBeTruthy();
-    expect(screen.getByTestId('home-hero-plugin-presets').textContent).toContain('Simple Deck');
-    fireEvent.click(screen.getAllByTestId('home-hero-plugin-preset')[0]!);
-    expect(fetchMock.mock.calls.some(([url]) => (
-      typeof url === 'string' && url.includes('/api/plugins/example-simple-deck/apply')
-    ))).toBe(false);
-    expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toBe(
-      'Create a pitch deck for decision makers about the user brief with 10-15 pages. Speaker notes: include speaker notes. Use the active project design system.',
-    );
-
-    await clearActiveTypeChip();
     fireEvent.click(await screen.findByTestId('home-hero-rail-prototype'));
     await waitFor(() => {
-      expect(screen.getByTestId('home-hero-plugin-presets')).toBeTruthy();
+      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Prototype');
     });
-    fireEvent.click(screen.getAllByTestId('home-hero-plugin-preset')[0]!);
-    expect(fetchMock.mock.calls.some(([url]) => (
-      typeof url === 'string' && url.includes('/api/plugins/example-web-prototype/apply')
-    ))).toBe(false);
-    expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toBe(
-      'Build a high-fidelity web prototype for product evaluators using the active project design system from the bundled web prototype seed.',
-    );
+    expect(screen.queryByTestId('home-hero-plugin-presets')).toBeNull();
+    expect(screen.queryByTestId('home-hero-prompt-examples')).toBeNull();
+    expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toBe('');
   });
 
   it('appends a plugin-use query handoff without replacing an existing prompt', async () => {
@@ -1344,8 +1325,5 @@ async function clearActiveTypeChip() {
 }
 
 async function clickHomeShortcut(id: string) {
-  const trigger = await screen.findByTestId('home-hero-shortcuts-trigger');
-  await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(trigger);
   fireEvent.click(await screen.findByTestId(`home-hero-rail-${id}`));
 }

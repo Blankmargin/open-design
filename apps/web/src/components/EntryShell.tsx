@@ -28,7 +28,6 @@ import type { DesignSystemGenerateSnapshot } from './DesignSystemFlow';
 import { useAnalytics } from '../analytics/provider';
 import {
   trackHomeNavClick,
-  trackHomeToolbarClick,
   trackOnboardingClick,
   trackOnboardingCompleteResult,
   trackOnboardingRuntimeScanResult,
@@ -75,7 +74,6 @@ import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { DesignSystemsTab } from './DesignSystemsTab';
 import { EntryNavRail, type EntryView as EntryViewKind } from './EntryNavRail';
 import { UpdaterPopup } from './UpdaterPopup';
-import { GithubStarBadge } from './GithubStarBadge';
 import { HomeView } from './HomeView';
 import {
   createPluginAuthoringHandoff,
@@ -599,17 +597,45 @@ export function EntryShell({
         <main className="entry-main entry-main--scroll">
           <div className="entry-main__topbar">
             <div className="entry-main__topbar-chips">
-              <GithubStarBadge />
-              <a
-                className="entry-discord-badge"
-                href="https://discord.gg/mHAjSMV6gz"
-                aria-label="Join the Open Design Discord"
-                title="Join the Open Design Discord"
-                data-testid="entry-discord-badge"
-              >
-                <Icon name="discord" size={14} className="entry-discord-badge__icon" />
-                <span className="entry-discord-badge__label">Join Discord</span>
-              </a>
+              {/*
+                Hidden for now per product trim request. Restore these topbar
+                actions by re-adding their imports/handlers and moving this
+                block back into the JSX:
+
+                <GithubStarBadge />
+                <a
+                  className="entry-discord-badge"
+                  href="https://discord.gg/mHAjSMV6gz"
+                  aria-label="Join the Open Design Discord"
+                  title="Join the Open Design Discord"
+                  data-testid="entry-discord-badge"
+                >
+                  <Icon name="discord" size={14} className="entry-discord-badge__icon" />
+                  <span className="entry-discord-badge__label">Join Discord</span>
+                </a>
+                <button
+                  type="button"
+                  className="use-everywhere-chip"
+                  onClick={() => {
+                    trackHomeToolbarClick(analytics.track, {
+                      page_name: 'home',
+                      area: 'toolbar',
+                      element: 'use_everywhere',
+                    });
+                    openIntegrationTab('use-everywhere');
+                  }}
+                  title={t('entry.useEverywhereTitle')}
+                  aria-label={t('entry.useEverywhereAria')}
+                  data-testid="entry-use-everywhere-button"
+                >
+                  <span className="use-everywhere-chip__icon" aria-hidden>
+                    <Icon name="hammer" size={13} />
+                  </span>
+                  <span className="use-everywhere-chip__label">
+                    {t('entry.useEverywhereTitle')}
+                  </span>
+                </button>
+              */}
               <InlineModelSwitcher
                 config={config}
                 agents={agents}
@@ -622,28 +648,6 @@ export function EntryShell({
                 onApiModelChange={onApiModelChange}
                 onOpenSettings={onOpenSettings}
               />
-              <button
-                type="button"
-                className="use-everywhere-chip"
-                onClick={() => {
-                  trackHomeToolbarClick(analytics.track, {
-                    page_name: 'home',
-                    area: 'toolbar',
-                    element: 'use_everywhere',
-                  });
-                  openIntegrationTab('use-everywhere');
-                }}
-                title={t('entry.useEverywhereTitle')}
-                aria-label={t('entry.useEverywhereAria')}
-                data-testid="entry-use-everywhere-button"
-              >
-                <span className="use-everywhere-chip__icon" aria-hidden>
-                  <Icon name="hammer" size={13} />
-                </span>
-                <span className="use-everywhere-chip__label">
-                  {t('entry.useEverywhereTitle')}
-                </span>
-              </button>
             </div>
             <UpdaterPopup />
             {avatarMenu}
@@ -662,7 +666,8 @@ export function EntryShell({
                 onSubmit={handlePluginLoopSubmit}
                 onOpenProject={onOpenProject}
                 onViewAllProjects={() => changeView('projects')}
-                onBrowseRegistry={() => changeView('plugins')}
+                // Hidden for now with the Community home section:
+                // onBrowseRegistry={() => changeView('plugins')}
                 onOpenNewProject={(tab) => {
                   // Stage B of plugin-driven-flow-plan: the rail's
                   // "From template" chip wires through here so the

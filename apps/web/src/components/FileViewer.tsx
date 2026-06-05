@@ -7118,6 +7118,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
         <div className="viewer-toolbar-actions">
           {showPreviewToolbarControls ? (
             <>
+              {/*
+              Hidden for now: annotation/comment tool above the generated preview.
               <div className="artifact-tool-menu-anchor">
                 <button
                   type="button"
@@ -7132,6 +7134,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                   <RemixIcon name="chat-new-line" size={15} />
                 </button>
               </div>
+              */}
+              {/*
+              Hidden for now: mark tool above the generated preview.
               <button
                 className={`viewer-action viewer-action-icon${drawOverlayOpen ? ' active' : ''}`}
                 type="button"
@@ -7144,6 +7149,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
               >
                 <RemixIcon name="mark-pen-line" size={15} />
               </button>
+              */}
+              {/*
+              Hidden for now: manual edit tool above the generated preview.
               <span className="viewer-toolbar-tool-divider" aria-hidden />
               <button
                 className={`viewer-action viewer-action-icon${manualEditMode ? ' active' : ''}`}
@@ -7157,6 +7165,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
               >
                 <RemixIcon name="edit-line" size={15} />
               </button>
+              */}
+              {/*
+              Hidden for now: comments panel button above the generated preview.
               <span className="viewer-toolbar-tool-divider" aria-hidden />
               <button
                 type="button"
@@ -7171,6 +7182,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 <RemixIcon name="message-3-line" size={15} />
                 <span className="viewer-comment-count" aria-hidden>{visibleSideComments.length}</span>
               </button>
+              */}
               {source !== null && mode === 'preview' ? (
                 <div className="zoom-menu viewer-toolbar-zoom" ref={zoomMenuRef}>
                   <button
@@ -7212,6 +7224,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
           ) : null}
           {!showPreviewToolbarControls ? (
             <>
+              {/*
+              Hidden for now: annotation/comment tool above the generated preview.
               <button
                 type="button"
                 className={`viewer-action viewer-comment-toggle${boardMode && !commentCreateMode && boardTool === 'inspect' ? ' active' : ''}`}
@@ -7224,6 +7238,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 <RemixIcon name="chat-new-line" size={14} />
                 <span>{t('fileViewer.comment')}</span>
               </button>
+              */}
+              {/*
+              Hidden for now: comments panel button above the generated preview.
               <button
                 type="button"
                 className={`viewer-action viewer-comment-toggle${boardMode && commentCreateMode ? ' active' : ''}`}
@@ -7235,6 +7252,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 <RemixIcon name="message-3-line" size={14} />
                 <span>{t('chat.tabComments')}</span>
               </button>
+              */}
             </>
           ) : null}
         </div>
@@ -7278,6 +7296,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
           ) : null}
           {canShare || canDownload ? (
             <div className="chrome-file-action-menus" ref={shareRef}>
+              {/*
+              Hidden for now: Share button/menu in the generated project page header.
               {canShare ? (
                 <div className="share-menu chrome-share-menu">
                   <button
@@ -7393,6 +7413,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                   ) : null}
                 </div>
               ) : null}
+              */}
               {canDownload ? (
                 <div className="share-menu chrome-share-menu">
                 <button
@@ -7410,6 +7431,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                 </button>
                 {downloadMenuOpen ? (
                   <div className="share-menu-popover" role="menu">
+                  {/*
+                  Hidden for now: PDF export option. Download menu only keeps .zip.
                   <button
                     type="button"
                     className="share-menu-item"
@@ -7428,6 +7451,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                     <span className="share-menu-icon"><RemixIcon name="file-line" size={15} /></span>
                     <span>{t('fileViewer.exportPdf')}</span>
                   </button>
+                  */}
+                  {/*
+                  Hidden for now: PPTX export option. Download menu only keeps .zip.
                   {showPptxExport ? (
                     <button
                       type="button"
@@ -7452,6 +7478,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                       <span>{t('fileViewer.exportPptx')}</span>
                     </button>
                   ) : null}
+                  */}
+                  {/*
+                  Hidden for now: image export option. Download menu only keeps .zip.
                   {showImageExport ? (
                     <button
                       type="button"
@@ -7463,6 +7492,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                       <span>{t('fileViewer.exportImage')}</span>
                     </button>
                   ) : null}
+                  */}
                   <button
                     type="button"
                     className="share-menu-item"
@@ -7480,6 +7510,8 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                     <span className="share-menu-icon"><RemixIcon name="file-zip-line" size={15} /></span>
                     <span>{t('fileViewer.exportZip')}</span>
                   </button>
+                  {/*
+                  Hidden for now: HTML export option. Download menu only keeps .zip.
                   <button
                     type="button"
                     className="share-menu-item"
@@ -7492,6 +7524,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                     <span className="share-menu-icon"><RemixIcon name="file-code-line" size={15} /></span>
                     <span>{t('fileViewer.exportHtml')}</span>
                   </button>
+                  */}
+                  {/*
+                  Hidden for now: Markdown export option. Download menu only keeps .zip.
                   {showMarkdownExport ? (
                     <button
                       type="button"
@@ -7506,6 +7541,9 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                       <span>{t('fileViewer.exportMd')}</span>
                     </button>
                   ) : null}
+                  */}
+                  {/*
+                  Hidden for now: Save as template option. Download menu only keeps .zip.
                   <div className="share-menu-divider" />
                   <div className="share-menu-section-label" role="presentation">
                     {t('fileViewer.shareMenuSave')}
@@ -7522,16 +7560,17 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
                     }}
                   >
                     <span className="share-menu-icon"><RemixIcon name="file-copy-line" size={15} /></span>
-                    <span>
-                      {savingTemplate
-                        ? t('fileViewer.savingTemplate')
-                        : templateNote
-                          ? templateNote
-                          : t('fileViewer.saveAsTemplate')}
-                    </span>
-                  </button>
-                </div>
-                ) : null}
+	                    <span>
+	                      {savingTemplate
+	                        ? t('fileViewer.savingTemplate')
+	                        : templateNote
+	                          ? templateNote
+	                          : t('fileViewer.saveAsTemplate')}
+	                    </span>
+	                  </button>
+	                  */}
+	                  </div>
+	                ) : null}
               </div>
               ) : null}
             </div>
