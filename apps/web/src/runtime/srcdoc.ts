@@ -27,9 +27,38 @@ export type SandboxShimInit = {
   windowName?: string;
 };
 
+// A storage snapshot captured by the sandbox navigation bridge, tagged with the
+// `.html` file it is bound for. The host must seed it into THAT file's srcDoc
+// (and no other), so it is keyed by target file name rather than consumed by the
+// first render that happens to run after a navigation. See FileViewer's srcDoc
+// memo and FileWorkspace's handlePreviewNavigate.
+export type PreviewStorageSnapshot = {
+  file: string;
+  snapshot: SandboxShimInit;
+};
+
+// Decide whether a pending navigation storage snapshot belongs to the document
+// currently being built. The host must seed the snapshot into ITS target file's
+// srcDoc exactly once: not into the intermediate empty/stale render that runs
+// first after a cross-file jump (`hasSource` false, or a different `fileName`),
+// because consuming it there strands the real page with no auth state and its
+// guard bounces back to login. Returns `consume: true` only on the matching,
+// source-ready render so the caller knows when to clear the ref.
+export function resolvePreviewStorageSnapshot(
+  pending: PreviewStorageSnapshot | null | undefined,
+  fileName: string,
+  hasSource: boolean,
+): { initStorage: SandboxShimInit | null; consume: boolean } {
+  if (pending && hasSource && pending.file === fileName) {
+    return { initStorage: pending.snapshot, consume: true };
+  }
+  return { initStorage: null, consume: false };
+}
+
 export type SrcdocOptions = {
   deck?: boolean;
   baseHref?: string;
+  currentFileName?: string;
   initialSlideIndex?: number;
   commentBridge?: boolean;
   inspectBridge?: boolean;
@@ -60,7 +89,8 @@ export function buildSrcdoc(
   const withOdIds = annotateMissingOdIds(wrapped);
   const withSourcePaths = options.editBridge ? annotateManualEditSourcePaths(withOdIds) : withOdIds;
   const withBase = options.baseHref ? injectBaseHref(withSourcePaths, options.baseHref) : withSourcePaths;
-  const withShim = injectSandboxShim(withBase, options.initStorage);
+  const withNavRewrites = rewriteSandboxHtmlScriptNavigations(withBase);
+  const withShim = injectSandboxShim(withNavRewrites, options.initStorage, options.currentFileName);
   const withFocusGuard = options.previewFocusGuard ? injectPreviewFocusGuard(withShim) : withShim;
   const withDeck = options.deck ? injectDeckBridge(withFocusGuard, options.initialSlideIndex) : withFocusGuard;
   // Comment + Inspect share an element-selection bridge: both pick a
@@ -655,6 +685,140 @@ function safeJsonForScript(value: unknown): string {
     .replace(new RegExp('\u2029', 'g'), '\\u2029');
 }
 
+function rewriteSandboxHtmlScriptNavigations(doc: string): string {
+  return doc.replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi, (whole, open: string, body: string, close: string) => {
+    if (/\bsrc\s*=/i.test(open)) return whole;
+    return `${open}${rewriteSandboxHtmlScriptBodyNavigations(body)}${close}`;
+  });
+}
+
+function rewriteSandboxHtmlScriptBodyNavigations(body: string): string {
+  let out = '';
+  let i = 0;
+
+  while (i < body.length) {
+    const nav = matchSandboxHtmlNavigationAt(body, i);
+    if (nav) {
+      out += `window.__odNavigateHtml(${JSON.stringify(nav.url)})`;
+      i = nav.end;
+      continue;
+    }
+    const locationRead = matchSandboxLocationReadAt(body, i);
+    if (locationRead) {
+      out += `window.__odVirtualLocation.${locationRead.prop}`;
+      i = locationRead.end;
+      continue;
+    }
+
+    const ch = body[i];
+    const next = body[i + 1];
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const literal = readJsDelimited(body, i, ch);
+      out += literal.text;
+      i = literal.end;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      let comment = '//';
+      i += 2;
+      while (i < body.length) {
+        const c = body[i];
+        comment += c;
+        i += 1;
+        if (c === '\n' || c === '\r') break;
+      }
+      out += comment;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      let comment = '/*';
+      i += 2;
+      while (i < body.length) {
+        const c = body[i];
+        const n = body[i + 1];
+        comment += c;
+        i += 1;
+        if (c === '*' && n === '/') {
+          comment += n;
+          i += 1;
+          break;
+        }
+      }
+      out += comment;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+function matchSandboxLocationReadAt(source: string, index: number): { end: number; prop: string } | null {
+  if (index > 0 && /[\w$.]/.test(source[index - 1] ?? '')) return null;
+  const rest = source.slice(index);
+  const match = /^(?:(?:window|document)\s*\.\s*)?location\s*\.\s*(href|pathname|search|hash)\b/.exec(rest);
+  if (!match) return null;
+  const after = rest.slice(match[0].length);
+  const op = /^\s*([=+\-*/%])/.exec(after)?.[1] ?? '';
+  if (op === '=') {
+    const trimmed = after.trimStart();
+    if (!trimmed.startsWith('==') && !trimmed.startsWith('=>')) return null;
+  } else if (op) {
+    const trimmed = after.trimStart();
+    if (trimmed.startsWith(`${op}=`)) return null;
+  }
+  return { end: index + match[0].length, prop: match[1] ?? 'href' };
+}
+
+function matchSandboxHtmlNavigationAt(source: string, index: number): { end: number; url: string } | null {
+  const rest = source.slice(index);
+  const htmlLiteral = String.raw`(['"])((?:\\.|[^'"\\])*?\.html(?:[?#][^'"\\]*)?)\1`;
+  const patterns = [
+    new RegExp(String.raw`^(?:window\s*\.\s*)?location\s*\.\s*(?:replace|assign)\s*\(\s*${htmlLiteral}\s*\)`),
+    new RegExp(String.raw`^(?:window\s*\.\s*)?location\s*\.\s*href\s*=\s*${htmlLiteral}`),
+    new RegExp(String.raw`^(?:window\s*\.\s*)?location\s*=\s*${htmlLiteral}`),
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(rest);
+    if (!match) continue;
+    return {
+      end: index + match[0].length,
+      url: parseJsStringLiteral(match[1] ?? '"', match[2] ?? ''),
+    };
+  }
+  return null;
+}
+
+function parseJsStringLiteral(quote: string, raw: string): string {
+  const jsonish = quote === '"'
+    ? `"${raw}"`
+    : `"${raw.replace(/"/g, '\\"').replace(/\\'/g, "'")}"`;
+  try {
+    return JSON.parse(jsonish) as string;
+  } catch {
+    return raw;
+  }
+}
+
+function readJsDelimited(source: string, start: number, quote: string): { text: string; end: number } {
+  let text = quote;
+  let i = start + 1;
+  while (i < source.length) {
+    const c = source[i];
+    text += c;
+    i += 1;
+    if (c === '\\') {
+      if (i < source.length) {
+        text += source[i];
+        i += 1;
+      }
+      continue;
+    }
+    if (c === quote) break;
+  }
+  return { text, end: i };
+}
+
 // Sandboxed iframes (we use `sandbox="allow-scripts"`) without
 // `allow-same-origin` raise a SecurityError on first `localStorage` /
 // `sessionStorage` access. Many freeform-generated decks call
@@ -675,11 +839,44 @@ function safeJsonForScript(value: unknown): string {
 // new iframe's shim with the storage snapshot so auth state flows
 // across files without relying on `window.name` surviving
 // srcDoc-to-URL transitions.
-function injectSandboxShim(doc: string, init?: SandboxShimInit | null): string {
+function injectSandboxShim(doc: string, init?: SandboxShimInit | null, currentFileName?: string): string {
   const initJson = init ? safeJsonForScript(init) : 'null';
+  const currentFileJson = safeJsonForScript(currentFileName ?? '');
   const shim = `<script data-od-sandbox-shim>(function(){
   var __init = ${initJson};
+  var __currentFileName = ${currentFileJson};
   var __lsD = {}, __ssD = {};
+  function buildVirtualLocation(fileName){
+    var raw = String(fileName || '');
+    if (!raw) {
+      try { raw = String(window.location && window.location.href || 'about:srcdoc'); } catch(_e) { raw = 'about:srcdoc'; }
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+      try {
+        var parsed = new URL(raw);
+        return { href: parsed.href, pathname: parsed.pathname, search: parsed.search, hash: parsed.hash };
+      } catch(_e) {
+        return { href: raw, pathname: raw, search: '', hash: '' };
+      }
+    }
+    var hashIndex = raw.indexOf('#');
+    var hash = hashIndex >= 0 ? raw.slice(hashIndex) : '';
+    var withoutHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+    var queryIndex = withoutHash.indexOf('?');
+    var search = queryIndex >= 0 ? withoutHash.slice(queryIndex) : '';
+    var path = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
+    path = '/' + path.replace(/^\\/+/, '');
+    return { href: 'https://od.local' + path + search + hash, pathname: path, search: search, hash: hash };
+  }
+  try {
+    Object.defineProperty(window, '__odVirtualLocation', {
+      configurable: true,
+      writable: true,
+      value: buildVirtualLocation(__currentFileName)
+    });
+  } catch(_e) {
+    window.__odVirtualLocation = buildVirtualLocation(__currentFileName);
+  }
   if (__init && __init.localStorage) {
     var _s = __init.localStorage;
     for (var _k in _s) { if (Object.prototype.hasOwnProperty.call(_s, _k)) __lsD[_k] = String(_s[_k]); }
@@ -700,6 +897,26 @@ function injectSandboxShim(doc: string, init?: SandboxShimInit | null): string {
     Object.defineProperty(api, 'length', { get: function(){ return Object.keys(backing).length; } });
     return api;
   }
+  function mirrorNativeStore(nativeStore, backing){
+    var api = {
+      getItem: function(k){ return nativeStore.getItem(k); },
+      setItem: function(k, v){ nativeStore.setItem(k, v); backing[k] = String(v); },
+      removeItem: function(k){ nativeStore.removeItem(k); delete backing[k]; },
+      clear: function(){ nativeStore.clear(); for (var p in backing) { if (Object.prototype.hasOwnProperty.call(backing, p)) delete backing[p]; } },
+      key: function(i){ return nativeStore.key(i); }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return nativeStore.length; } });
+    try {
+      for (var i = 0; i < nativeStore.length; i++) {
+        var key = nativeStore.key(i);
+        if (key !== null) {
+          var value = nativeStore.getItem(key);
+          if (value !== null) backing[key] = String(value);
+        }
+      }
+    } catch(_e) {}
+    return api;
+  }
   function tryShim(name, backing){
     var works = false;
     try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
@@ -707,6 +924,8 @@ function injectSandboxShim(doc: string, init?: SandboxShimInit | null): string {
     if (works) {
       var src = __init && __init[name];
       if (src) { for (var ik in src) { if (Object.prototype.hasOwnProperty.call(src, ik)) { try { window[name].setItem(ik, src[ik]); } catch(_e){} } } }
+      try { Object.defineProperty(window, name, { configurable: true, value: mirrorNativeStore(window[name], backing) }); }
+      catch (_e) { try { window[name] = mirrorNativeStore(window[name], backing); } catch (_e2) {} }
       return;
     }
     try { Object.defineProperty(window, name, { configurable: true, value: makeStore(backing) }); }
@@ -729,20 +948,54 @@ function injectSandboxShim(doc: string, init?: SandboxShimInit | null): string {
       window.parent.postMessage({ type: 'od:open-file-request', name: fn, snapshot: snap }, '*');
     } catch(_e){}
   }
-  var _oReplace = Location.prototype.replace;
-  Location.prototype.replace = function(url) {
-    var n = _htmlName(url); if (n) { _postNav(n); return; }
-    return _oReplace.call(this, url);
-  };
-  var _oAssign = Location.prototype.assign;
-  Location.prototype.assign = function(url) {
-    var n = _htmlName(url); if (n) { _postNav(n); return; }
-    return _oAssign.call(this, url);
-  };
   try {
-    var _hd = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+    Object.defineProperty(window, '__odNavigateHtml', {
+      configurable: true,
+      writable: true,
+      value: function(url) {
+        var n = _htmlName(url);
+        if (n) { _postNav(n); return false; }
+        try { window.location.href = url; } catch(_e) {}
+        return false;
+      }
+    });
+  } catch(_e) {
+    try {
+      window.__odNavigateHtml = function(url) {
+        var n = _htmlName(url);
+        if (n) { _postNav(n); return false; }
+        try { window.location.href = url; } catch(_e2) {}
+        return false;
+      };
+    } catch(_e3) {}
+  }
+  var _Location = null;
+  try { _Location = window.Location || (window.location && window.location.constructor); } catch(_e) {}
+  var _locationProto = _Location && _Location.prototype;
+  if (_locationProto) {
+    try {
+      var _oReplace = _locationProto.replace;
+      if (typeof _oReplace === 'function') {
+        _locationProto.replace = function(url) {
+          var n = _htmlName(url); if (n) { _postNav(n); return; }
+          return _oReplace.call(this, url);
+        };
+      }
+    } catch(_e) {}
+    try {
+      var _oAssign = _locationProto.assign;
+      if (typeof _oAssign === 'function') {
+        _locationProto.assign = function(url) {
+          var n = _htmlName(url); if (n) { _postNav(n); return; }
+          return _oAssign.call(this, url);
+        };
+      }
+    } catch(_e) {}
+  }
+  try {
+    var _hd = _locationProto && Object.getOwnPropertyDescriptor(_locationProto, 'href');
     if (_hd && _hd.set) {
-      Object.defineProperty(Location.prototype, 'href', {
+      Object.defineProperty(_locationProto, 'href', {
         get: _hd.get, set: function(url) {
           var n = _htmlName(url); if (n) { _postNav(n); return; }
           return _hd.set.call(this, url);
@@ -751,8 +1004,12 @@ function injectSandboxShim(doc: string, init?: SandboxShimInit | null): string {
     }
   } catch(_e){}
   document.addEventListener('click', function(e) {
-    if (!e.target || !(e.target instanceof Element)) return;
-    var link = e.target.closest('a[href]');
+    var target = e.target;
+    if (!target) return;
+    var canUseElement = false;
+    try { canUseElement = typeof Element !== 'undefined' && target instanceof Element; } catch(_e) {}
+    if (!canUseElement && (!target.closest || target.nodeType !== 1)) return;
+    var link = target.closest ? target.closest('a[href]') : null;
     if (!link) return;
     var href = link.getAttribute('href');
     if (href === null) return;

@@ -176,23 +176,18 @@ describe('composeSystemPrompt', () => {
     expect(prompt).toContain('`admin/admin123`');
     expect(prompt).toContain('**auth-flow runnable rule**');
     expect(prompt).toContain('login/auth is only complete when it works across files');
-    expect(prompt).toContain('real `handleLogin(event)`');
-    expect(prompt).toContain('equivalent mock handler');
+    expect(prompt).toContain('mock `handleLogin(event)`');
+    expect(prompt).toContain('an equivalent mock handler');
     expect(prompt).toContain('calls `event.preventDefault()`');
-    expect(prompt).toContain('Every page that calls a shared auth function must load that shared auth script first');
+    expect(prompt).toContain('load it on every page that calls them');
     expect(prompt).toContain('`login.html` MUST include `<script src="js/auth.js"></script>` before its inline submit handler');
-    expect(prompt).toContain('Do NOT `return` after writing `localStorage` or `sessionStorage`');
-    expect(prompt).toContain('polyfill `localStorage` / `sessionStorage` in memory');
-    expect(prompt).toContain('data is lost when navigating between HTML files');
-    expect(prompt).toContain('`window.name` unconditionally as the primary cross-page mechanism');
-    expect(prompt).toContain('Do NOT put the `window.name` write inside a `catch` block');
-    expect(prompt).toContain('check `window.name` first on every guard call');
-    expect(prompt).toContain('before any `localStorage` or `sessionStorage` read');
-    expect(prompt).toContain('Do NOT put `window.name` checks only inside `catch`');
-    expect(prompt).toContain('Do NOT rely on `?auth=1`, `?redirect=...`');
-    expect(prompt).toContain('Open Design srcDoc previews strip query/hash during file navigation');
-    expect(prompt).toContain('navigate in the same frame to a plain file path');
-    expect(prompt).toContain('Do NOT use `window.top.location`, `window.parent.location`, `window.open`');
+    expect(prompt).toContain('protected pages check demo auth and redirect to `login.html`');
+    expect(prompt).toContain('Persist demo auth with `window.name`');
+    expect(prompt).toContain('it survives same-frame `.html` navigation in the sandbox');
+    expect(prompt).toContain('have guards check `window.name` first');
+    expect(prompt).toContain('Do NOT carry auth in query strings or hashes');
+    expect(prompt).toContain('Navigate the same frame to a plain `.html` file such as `index.html`');
+    expect(prompt).toContain('do NOT use `window.top.location`, `window.parent.location`, `window.open`');
   });
 
   it('requires visible interactive controls to be runnable, not decorative', () => {

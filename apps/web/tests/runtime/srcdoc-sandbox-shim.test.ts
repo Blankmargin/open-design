@@ -202,4 +202,204 @@ describe('buildSrcdoc shim isolates Web Storage from a sandboxed window (#1403 v
     const survived = vm.runInContext('window.localStorage.getItem("theme")', ctx);
     expect(survived).toBe('dark');
   });
+
+  it('captures native Web Storage writes in the navigation snapshot', () => {
+    const doc = buildSrcdoc(`<!doctype html>
+<html>
+  <body>
+    <script>
+      localStorage.setItem('auth', '1');
+      sessionStorage.setItem('tab', 'current');
+      window.location.replace('index.html');
+    </script>
+  </body>
+</html>`);
+    const scripts = extractScriptBodies(doc);
+    const shimScript = scripts.find((s) => /makeStore/.test(s));
+    const loginScript = scripts.find((s) => /auth/.test(s) && /index\.html/.test(s));
+    expect(shimScript, 'shim script body must be present').toBeDefined();
+    expect(loginScript, 'rewritten login script body must be present').toBeDefined();
+
+    function nativeStore() {
+      const data: Record<string, string> = {};
+      return {
+        getItem: (k: string) => (k in data ? data[k]! : null),
+        setItem: (k: string, v: string) => {
+          data[k] = String(v);
+        },
+        removeItem: (k: string) => {
+          delete data[k];
+        },
+        clear: () => {
+          for (const k of Object.keys(data)) delete data[k];
+        },
+        key: (i: number) => Object.keys(data)[i] ?? null,
+        get length() {
+          return Object.keys(data).length;
+        },
+      };
+    }
+
+    const messages: unknown[] = [];
+    const ctx = vm.createContext({
+      localStorage: nativeStore(),
+      sessionStorage: nativeStore(),
+      parent: { postMessage: (message: unknown) => messages.push(message) },
+      location: { href: 'about:srcdoc' },
+      name: 'AUTH_OK',
+      document: { addEventListener: () => {} },
+      console,
+    });
+    vm.runInContext('window = this; globalThis = this;', ctx);
+    vm.runInContext(shimScript as string, ctx);
+    vm.runInContext(loginScript as string, ctx);
+
+    expect(messages).toEqual([
+      {
+        type: 'od:open-file-request',
+        name: 'index.html',
+        snapshot: {
+          localStorage: { auth: '1' },
+          sessionStorage: { tab: 'current' },
+          windowName: 'AUTH_OK',
+        },
+      },
+    ]);
+  });
+
+  it('rewrites same-frame .html location.replace calls through the sandbox navigation bridge', () => {
+    const doc = buildSrcdoc(`<!doctype html>
+<html>
+  <head><meta charset="utf-8"></head>
+  <body>
+    <script>
+      function login() {
+        window.name = 'AUTH_OK';
+        localStorage.setItem('auth', '1');
+        location.replace('index.html');
+      }
+      login();
+    </script>
+  </body>
+</html>`);
+    expect(doc).toContain('window.__odNavigateHtml("index.html")');
+
+    const scripts = extractScriptBodies(doc);
+    const shimScript = scripts.find((s) => /makeStore/.test(s));
+    const loginScript = scripts.find((s) => /AUTH_OK/.test(s));
+    expect(shimScript, 'shim script body must be present').toBeDefined();
+    expect(loginScript, 'rewritten login script body must be present').toBeDefined();
+
+    const messages: unknown[] = [];
+    const ctx = vm.createContext({
+      parent: {
+        postMessage: (message: unknown) => {
+          messages.push(message);
+        },
+      },
+      location: { href: 'about:srcdoc' },
+      name: '',
+      document: { addEventListener: () => {} },
+      console,
+    });
+    vm.runInContext('window = this; globalThis = this;', ctx);
+    vm.runInContext(shimScript as string, ctx);
+    vm.runInContext(loginScript as string, ctx);
+
+    expect(messages).toEqual([
+      {
+        type: 'od:open-file-request',
+        name: 'index.html',
+        snapshot: {
+          localStorage: { auth: '1' },
+          sessionStorage: {},
+          windowName: 'AUTH_OK',
+        },
+      },
+    ]);
+  });
+
+  it('rewrites common same-frame .html navigation spellings before user scripts run', () => {
+    const doc = buildSrcdoc(`<!doctype html>
+<html>
+  <body>
+    <script>
+      location.replace('index.html');
+      window.location.assign("settings.html");
+      location.href = 'login.html';
+      window.location = "dashboard.html#main";
+    </script>
+  </body>
+</html>`);
+
+    expect(doc).toContain('window.__odNavigateHtml("index.html")');
+    expect(doc).toContain('window.__odNavigateHtml("settings.html")');
+    expect(doc).toContain('window.__odNavigateHtml("login.html")');
+    expect(doc).toContain('window.__odNavigateHtml("dashboard.html#main")');
+    expect(doc).not.toContain("location.replace('index.html')");
+    expect(doc).not.toContain('window.location.assign("settings.html")');
+    expect(doc).not.toContain("location.href = 'login.html'");
+    expect(doc).not.toContain('window.location = "dashboard.html#main"');
+  });
+
+  it('gives scripts a virtual current .html URL for auth guards in srcdoc', () => {
+    const doc = buildSrcdoc(`<!doctype html>
+<html>
+  <body>
+    <script>
+      if (window.location.href.indexOf('login.html') === -1) {
+        window.location.replace('login.html');
+      }
+      window.__path = window.location.pathname;
+    </script>
+  </body>
+</html>`, { currentFileName: 'login.html' });
+
+    expect(doc).toContain("window.__odVirtualLocation.href.indexOf('login.html')");
+    expect(doc).toContain('window.__odVirtualLocation.pathname');
+
+    const scripts = extractScriptBodies(doc);
+    const shimScript = scripts.find((s) => /buildVirtualLocation/.test(s));
+    const guardScript = scripts.find((s) => /__path/.test(s));
+    expect(shimScript, 'shim script body must be present').toBeDefined();
+    expect(guardScript, 'guard script body must be present').toBeDefined();
+
+    const messages: unknown[] = [];
+    const ctx = vm.createContext({
+      parent: { postMessage: (message: unknown) => messages.push(message) },
+      location: { href: 'about:srcdoc' },
+      name: '',
+      document: { addEventListener: () => {} },
+      console,
+    });
+    vm.runInContext('window = this; globalThis = this;', ctx);
+    vm.runInContext(shimScript as string, ctx);
+    vm.runInContext(guardScript as string, ctx);
+
+    expect(messages).toEqual([]);
+    expect(vm.runInContext('window.__path', ctx)).toBe('/login.html');
+  });
+
+  it('does not rewrite navigation-looking text inside JS strings or comments', () => {
+    const doc = buildSrcdoc(`<!doctype html>
+<html>
+  <body>
+    <script>
+      var example = "location.replace('index.html')";
+      var template = \`window.location.assign("settings.html")\`;
+      var nested = router.location.href;
+      // location.href = 'login.html';
+      /* window.location = "dashboard.html"; */
+      location.replace('real.html');
+    </script>
+  </body>
+</html>`);
+
+    expect(doc).toContain(`var example = "location.replace('index.html')"`);
+    expect(doc).toContain('var template = `window.location.assign("settings.html")`');
+    expect(doc).toContain('var nested = router.location.href;');
+    expect(doc).toContain("// location.href = 'login.html';");
+    expect(doc).toContain('/* window.location = "dashboard.html"; */');
+    expect(doc).toContain('window.__odNavigateHtml("real.html")');
+  });
 });

@@ -71,7 +71,7 @@ import {
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { buildReactComponentSrcdoc } from '../runtime/react-component';
 import { findHtmlEntriesReferencing } from '../runtime/jsx-module-refs';
-import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport, type SandboxShimInit } from '../runtime/srcdoc';
+import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport, resolvePreviewStorageSnapshot, type PreviewStorageSnapshot, type SandboxShimInit } from '../runtime/srcdoc';
 import {
   hasUrlModeBridge,
   htmlNeedsFocusGuard,
@@ -829,7 +829,7 @@ interface Props {
   // HTML entry that renders a module and drop the dead-end module tab.
   onOpenFileReplacing?: (openName: string, closeName: string) => void;
   onPreviewNavigate?: (name: string, snapshot: SandboxShimInit) => void;
-  previewStorageSnapshot?: { current: SandboxShimInit | null };
+  previewStorageSnapshot?: { current: PreviewStorageSnapshot | null };
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }
@@ -4115,7 +4115,7 @@ function HtmlViewer({
   onSendBoardCommentAttachments?: (attachments: ChatCommentAttachment[]) => Promise<boolean | void> | boolean | void;
   onFileSaved?: () => Promise<void> | void;
   onPreviewNavigate?: (name: string, snapshot: SandboxShimInit) => void;
-  previewStorageSnapshot?: { current: SandboxShimInit | null };
+  previewStorageSnapshot?: { current: PreviewStorageSnapshot | null };
   commentPortalId?: string;
   onCommentModeChange?: (active: boolean) => void;
 }) {
@@ -4256,6 +4256,7 @@ function HtmlViewer({
   const [mode, setMode] = useState<'preview' | 'source'>('preview');
   const [source, setSource] = useState<string | null>(liveHtml ?? null);
   const [inlinedSource, setInlinedSource] = useState<string | null>(null);
+  const [inlineAssetsPending, setInlineAssetsPending] = useState(false);
   const [zoom, setZoom] = useState(100);
   const fileViewportKey = previewViewportStateKey(projectId, file);
   const [previewViewport, setPreviewViewportState] = useState<PreviewViewportId>(
@@ -4768,19 +4769,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     return /class\s*=\s*['"][^'"]*\bslide\b/i.test(source);
   }, [source]);
   const effectiveDeck = isDeck || looksLikeDeck;
-  const livePreviewSource = inlinedSource ?? source;
-  // Freeze the iframe input on the snapshot taken at Edit-mode entry. Any
-  // source rewrite during edit (1.5s debounced set-style patches) stays
-  // invisible to the iframe — live updates flow through od-edit-preview-style
-  // postMessage instead, so the canvas never has to reload.
-  useEffect(() => {
-    if (manualEditMode && manualEditFrozenSource === null && livePreviewSource != null) {
-      setManualEditFrozenSource(livePreviewSource);
-    }
-  }, [manualEditMode, manualEditFrozenSource, livePreviewSource]);
-  const previewSource = (manualEditMode && manualEditFrozenSource !== null)
-    ? manualEditFrozenSource
-    : livePreviewSource;
   const manualEditPageStylesEnabled = typeof source === 'string' && isManualEditFullHtmlDocument(source);
   const urlModeBridge = hasUrlModeBridge(source);
   // When we URL-load the iframe directly, skip every in-host inlining /
@@ -4812,6 +4800,22 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     forceInline: forceInline || needsSandboxShim,
     needsFocusGuard,
   });
+  const needsRelativeAssetInlining = !useUrlLoadPreview && !!source && !effectiveDeck && hasRelativeAssetRefs(source);
+  const livePreviewSource = needsRelativeAssetInlining && inlinedSource === null
+    ? null
+    : inlineAssetsPending ? null : (inlinedSource ?? source);
+  // Freeze the iframe input on the snapshot taken at Edit-mode entry. Any
+  // source rewrite during edit (1.5s debounced set-style patches) stays
+  // invisible to the iframe — live updates flow through od-edit-preview-style
+  // postMessage instead, so the canvas never has to reload.
+  useEffect(() => {
+    if (manualEditMode && manualEditFrozenSource === null && livePreviewSource != null) {
+      setManualEditFrozenSource(livePreviewSource);
+    }
+  }, [manualEditMode, manualEditFrozenSource, livePreviewSource]);
+  const previewSource = (manualEditMode && manualEditFrozenSource !== null)
+    ? manualEditFrozenSource
+    : livePreviewSource;
   const basePreviewSrcUrl = useMemo(
     () => `${projectRawUrl(projectId, file.name)}?v=${Math.round(file.mtime)}&r=${reloadKey}&odPreviewBridge=scroll`,
     [projectId, file.name, file.mtime, reloadKey],
@@ -4845,11 +4849,18 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
 
   useEffect(() => {
     setInlinedSource(null);
+    setInlineAssetsPending(false);
     if (useUrlLoadPreview) return;
     if (!source || effectiveDeck || !hasRelativeAssetRefs(source)) return;
     let cancelled = false;
+    setInlineAssetsPending(true);
     void inlineRelativeAssets(source, projectId, file.name).then((next) => {
-      if (!cancelled) setInlinedSource(next);
+      if (cancelled) return;
+      setInlinedSource(next);
+      setInlineAssetsPending(false);
+    }, () => {
+      if (cancelled) return;
+      setInlineAssetsPending(false);
     });
     return () => {
       cancelled = true;
@@ -4858,11 +4869,24 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
 
   const srcDoc = useMemo(
     () => {
-      const snapshot = previewStorageSnapshot?.current ?? null;
-      if (previewStorageSnapshot) previewStorageSnapshot.current = null;
+      // Only seed (and consume) the navigation storage snapshot when we are
+      // actually building THIS file's document. The memo also recomputes on the
+      // intermediate render after a cross-file jump, where `previewSource` is
+      // still null/stale; consuming the snapshot there would leave the real
+      // page rendering with `initStorage: null`, so its auth guard bounces back
+      // to login. resolvePreviewStorageSnapshot keeps the ref intact until the
+      // matching, source-ready render, which is what keeps sandbox login
+      // working across files.
+      const { initStorage: snapshot, consume } = resolvePreviewStorageSnapshot(
+        previewStorageSnapshot?.current,
+        file.name,
+        !!previewSource,
+      );
+      if (consume && previewStorageSnapshot) previewStorageSnapshot.current = null;
       return previewSource ? buildSrcdoc(previewSource, {
         deck: effectiveDeck,
         baseHref: projectRawUrl(projectId, baseDirFor(file.name)),
+        currentFileName: file.name,
         initialSlideIndex: htmlPreviewSlideState.get(previewStateKey)?.active ?? 0,
         selectionBridge: true,
         editBridge: manualEditMode,

@@ -6,7 +6,7 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import type { TrackingProjectKind } from '@open-design/contracts/analytics';
-import type { SandboxShimInit } from '../runtime/srcdoc';
+import type { PreviewStorageSnapshot, SandboxShimInit } from '../runtime/srcdoc';
 import { useAnalytics } from '../analytics/provider';
 import {
   trackFileManagerClick,
@@ -357,7 +357,7 @@ export function FileWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRequest]);
 
-  const previewStorageSnapshotRef = useRef<SandboxShimInit | null>(null);
+  const previewStorageSnapshotRef = useRef<PreviewStorageSnapshot | null>(null);
 
   function openFile(name: string) {
     setUploadError(null);
@@ -369,7 +369,11 @@ export function FileWorkspace({
   }
 
   function handlePreviewNavigate(name: string, snapshot: SandboxShimInit) {
-    previewStorageSnapshotRef.current = snapshot;
+    // Tag the snapshot with its destination file. FileViewer seeds it into
+    // THAT file's srcDoc only — never into an intermediate empty/stale render
+    // that happens to run first while the navigated file's source is still
+    // loading, which used to drop the snapshot and break sandbox login.
+    previewStorageSnapshotRef.current = { file: name, snapshot };
     openFile(name);
   }
 

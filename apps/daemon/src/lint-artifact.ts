@@ -827,7 +827,7 @@ function detectAuthQueryFallback(scriptBodies: string): LintFinding | null {
     severity: 'P0',
     id: 'auth-query-fallback',
     message: 'Auth flow relies on `?auth=1` / query parameters during `.html` navigation. Open Design srcDoc previews strip query and hash when switching project files, so query auth is not a reliable cross-file mechanism.',
-    fix: 'Do not use query parameters to carry demo auth across HTML files. Set `window.name` before navigating, navigate with a plain file href such as `location.replace("index.html")`, and have protected pages check `window.name` first.',
+    fix: 'Do not use query parameters to carry demo auth across HTML files. Set `window.name` before navigating, navigate in the same frame to a plain `.html` file such as `index.html`, and have protected pages check `window.name` first.',
   };
 }
 
@@ -849,7 +849,7 @@ function detectAuthEscapingNavigation(html: string, scriptBodies: string): LintF
     severity: 'P0',
     id: 'auth-escaping-navigation',
     message: 'Auth flow uses top/parent/new-window navigation for an internal `.html` page. The preview runs in a sandboxed iframe and only same-frame `.html` navigation is bridged into an Open Design file switch.',
-    fix: 'Use same-frame navigation for auth redirects, for example `location.replace("index.html")` after setting `window.name`. Do not use `window.top.location`, `window.parent.location`, `window.open`, `target="_top"`, `target="_parent"`, or `target="_blank"` for internal auth pages.',
+    fix: 'Use same-frame navigation for auth redirects after setting `window.name`, targeting a plain `.html` file such as `index.html`. Do not use `window.top.location`, `window.parent.location`, `window.open`, `target="_top"`, `target="_parent"`, or `target="_blank"` for internal auth pages.',
     snippet: clip(escapedNav[0]),
   };
 }

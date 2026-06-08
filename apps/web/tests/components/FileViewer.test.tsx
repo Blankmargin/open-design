@@ -795,6 +795,51 @@ describe('FileViewer SVG artifacts', () => {
     expect(srcDocFrame?.srcdoc).toContain('data-od-sandbox-shim');
   });
 
+  it('waits for relative scripts to inline before booting sandbox-shim srcdoc previews', async () => {
+    const file = baseFile({
+      name: 'login.html',
+      path: 'login.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Login',
+        entry: 'login.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+    const scriptFetch = deferredResponse();
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/raw/js/auth.js')) return scriptFetch.promise;
+      return Promise.resolve(new Response('[]', { status: 200 }));
+    }));
+
+    const { container } = render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={file}
+        liveHtml='<html><body><form onsubmit="doLogin(event)"></form><script src="js/auth.js"></script></body></html>'
+      />,
+    );
+
+    const currentSrcDocFrame = () =>
+      container.querySelector('iframe[data-od-render-mode="srcdoc"]') as HTMLIFrameElement | null;
+    const srcDocFrame = currentSrcDocFrame();
+    expect(srcDocFrame?.getAttribute('data-od-active')).toBe('true');
+    expect(srcDocFrame?.srcdoc).toBe('');
+
+    scriptFetch.resolve(new Response("window.location.replace('index.html');", { status: 200 }));
+
+    await waitFor(() => {
+      expect(currentSrcDocFrame()?.srcdoc).toContain('window.__odNavigateHtml("index.html")');
+    });
+    expect(currentSrcDocFrame()?.srcdoc).not.toContain('<script src="js/auth.js"></script>');
+  });
+
   it('reactivates the srcDoc transport after switching source back to preview', async () => {
     const file = baseFile({
       name: 'page.html',
