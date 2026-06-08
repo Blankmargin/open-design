@@ -309,10 +309,24 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
     out.push(interactiveFinding);
   }
 
-  // ── P0-9: auth localStorage with window.name only in catch ────────
-  const authStorageFinding = detectAuthStorageFallback(html);
+  // ── P0-9: preview-runnable demo auth ──────────────────────────────
+  const scriptLikeSource = extractScriptLikeSource(html);
+
+  const authStorageFinding = detectAuthStorageFallback(scriptLikeSource);
   if (authStorageFinding) {
     out.push(authStorageFinding);
+  }
+  const authGuardFinding = detectAuthGuardWindowNameOrder(scriptLikeSource);
+  if (authGuardFinding) {
+    out.push(authGuardFinding);
+  }
+  const authQueryFinding = detectAuthQueryFallback(scriptLikeSource);
+  if (authQueryFinding) {
+    out.push(authQueryFinding);
+  }
+  const authEscapingNavFinding = detectAuthEscapingNavigation(html, scriptLikeSource);
+  if (authEscapingNavFinding) {
+    out.push(authEscapingNavFinding);
   }
 
   // ── P1-0: ALL-CAPS without letter-spacing ─────────────────────────
@@ -687,18 +701,32 @@ function isInsideFormAt(html: string, index: number): boolean {
   return before.lastIndexOf('<form') > before.lastIndexOf('</form>');
 }
 
-function detectAuthStorageFallback(html: string): LintFinding | null {
+function extractScriptLikeSource(html: string): string {
   const scriptBodies = (
     html.match(/<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi) ?? []
   )
     .map((s) => s.replace(/^<script[^>]*>|<\/script>$/gi, ''))
     .join('\n');
+  if (scriptBodies.trim().length > 0) {
+    return scriptBodies;
+  }
+  if (
+    /(?:localStorage|sessionStorage|window\.name|URLSearchParams|window\.location|location\.)/.test(
+      html,
+    )
+  ) {
+    return html;
+  }
+  return '';
+}
+
+function detectAuthStorageFallback(scriptBodies: string): LintFinding | null {
   if (!scriptBodies) return null;
 
   const hasStorageWrite =
     /(?:localStorage|sessionStorage)\.setItem\s*\(/.test(scriptBodies);
   const hasHtmlNav =
-    /window\.location\.(?:replace|href)\s*=?\s*\(?['"][^'"]*\.html/.test(
+    /(?:window\.)?location\.(?:replace|href)\s*=?\s*\(?['"][^'"]*\.html/.test(
       scriptBodies,
     );
   if (!hasStorageWrite || !hasHtmlNav) return null;
@@ -706,8 +734,12 @@ function detectAuthStorageFallback(html: string): LintFinding | null {
   const hasWindowNameAnywhere = /window\.name\s*=/.test(scriptBodies);
   const hasWindowNameInCatch =
     /catch\s*\([^)]*\)\s*\{[^}]*window\.name\s*=/s.test(scriptBodies);
+  const scriptBodiesWithoutCatch = scriptBodies.replace(
+    /catch\s*\([^)]*\)\s*\{[^}]*\}/gs,
+    '',
+  );
   const hasWindowNameOutsideCatch =
-    hasWindowNameAnywhere && !hasWindowNameInCatch;
+    /window\.name\s*=/.test(scriptBodiesWithoutCatch);
 
   if (!hasWindowNameAnywhere || (hasWindowNameInCatch && !hasWindowNameOutsideCatch)) {
     return {
@@ -720,6 +752,147 @@ function detectAuthStorageFallback(html: string): LintFinding | null {
     };
   }
 
+  return null;
+}
+
+function detectAuthGuardWindowNameOrder(scriptBodies: string): LintFinding | null {
+  if (!scriptBodies) return null;
+  if (!/(?:localStorage|sessionStorage)\.getItem\s*\(/.test(scriptBodies)) return null;
+  if (!/window\.name/.test(scriptBodies)) return null;
+
+  const authish =
+    /isAuthenticated|checkAuth|requireAuth|guard\s*:|guard\s*=|AUTH_KEY|auth/i.test(
+      scriptBodies,
+    );
+  if (!authish) return null;
+
+  const guardBlock =
+    functionBodyFor(scriptBodies, 'isAuthenticated') ??
+    objectMethodBodyFor(scriptBodies, 'isAuthenticated') ??
+    functionBodyFor(scriptBodies, 'checkAuth') ??
+    objectMethodBodyFor(scriptBodies, 'checkAuth') ??
+    functionBodyFor(scriptBodies, 'requireAuth') ??
+    objectMethodBodyFor(scriptBodies, 'requireAuth') ??
+    objectMethodBodyFor(scriptBodies, 'guard') ??
+    scriptBodies;
+
+  const firstStorageRead = firstIndexOf(guardBlock, [
+    /localStorage\.getItem\s*\(/,
+    /sessionStorage\.getItem\s*\(/,
+  ]);
+  const firstWindowName = guardBlock.indexOf('window.name');
+  if (firstStorageRead < 0 || firstWindowName < 0) return null;
+
+  const windowNameInCatchOnly =
+    firstWindowName > firstStorageRead &&
+    /catch\s*\([^)]*\)\s*\{[^}]*window\.name/s.test(guardBlock);
+  const storageReturnBeforeWindowName =
+    firstWindowName > firstStorageRead &&
+    /return[\s\S]{0,240}(?:localStorage|sessionStorage)\.getItem\s*\(/.test(
+      guardBlock.slice(0, firstWindowName),
+    );
+
+  if (!windowNameInCatchOnly && !storageReturnBeforeWindowName) return null;
+
+  return {
+    severity: 'P0',
+    id: 'auth-guard-window-name-order',
+    message: windowNameInCatchOnly
+      ? 'Auth guard checks `window.name` only inside a `catch` block. The preview sandbox can make storage reads succeed while returning empty state after HTML navigation, so the catch path is skipped.'
+      : 'Auth guard returns from `localStorage` / `sessionStorage` before checking `window.name`. In the preview sandbox, storage can be empty after HTML navigation even though `window.name` still carries the demo auth state.',
+    fix: 'Check `window.name` first on every guard call, then optionally read `localStorage` / `sessionStorage` in try/catch. Pattern: `if (window.name === AUTH_KEY) return true; try { if (localStorage.getItem(AUTH_KEY) === "1") return true; } catch (_) {}`.',
+    snippet: clip(guardBlock),
+  };
+}
+
+function detectAuthQueryFallback(scriptBodies: string): LintFinding | null {
+  if (!scriptBodies) return null;
+  const queryAuthRead =
+    /URLSearchParams\s*\(\s*window\.location\.search\s*\)[\s\S]{0,120}\.get\s*\(\s*['"](?:auth|redirect)['"]\s*\)/.test(
+      scriptBodies,
+    ) ||
+    /[?&](?:auth|redirect)=/.test(scriptBodies);
+  if (!queryAuthRead) return null;
+
+  const authish =
+    /login|logout|isAuthenticated|checkAuth|requireAuth|guard|AUTH_KEY|auth/i.test(
+      scriptBodies,
+    );
+  const htmlNav = /(?:window\.)?location\.(?:replace|href)\s*=?\s*\(?['"][^'"]*\.html/.test(
+    scriptBodies,
+  );
+  if (!authish || !htmlNav) return null;
+
+  return {
+    severity: 'P0',
+    id: 'auth-query-fallback',
+    message: 'Auth flow relies on `?auth=1` / query parameters during `.html` navigation. Open Design srcDoc previews strip query and hash when switching project files, so query auth is not a reliable cross-file mechanism.',
+    fix: 'Do not use query parameters to carry demo auth across HTML files. Set `window.name` before navigating, navigate with a plain file href such as `location.replace("index.html")`, and have protected pages check `window.name` first.',
+  };
+}
+
+function detectAuthEscapingNavigation(html: string, scriptBodies: string): LintFinding | null {
+  const source = `${html}\n${scriptBodies}`;
+  const authish =
+    /login|logout|isAuthenticated|checkAuth|requireAuth|guard|AUTH_KEY|auth/i.test(
+      source,
+    );
+  if (!authish) return null;
+
+  const escapedNav =
+    /\b(?:window\.)?(?:top|parent)\.location\b[\s\S]{0,120}\.html/i.exec(source) ??
+    /\bwindow\.open\s*\([^)]*\.html/i.exec(source) ??
+    /\btarget\s*=\s*["']_(?:top|parent|blank)["']/i.exec(source);
+  if (!escapedNav) return null;
+
+  return {
+    severity: 'P0',
+    id: 'auth-escaping-navigation',
+    message: 'Auth flow uses top/parent/new-window navigation for an internal `.html` page. The preview runs in a sandboxed iframe and only same-frame `.html` navigation is bridged into an Open Design file switch.',
+    fix: 'Use same-frame navigation for auth redirects, for example `location.replace("index.html")` after setting `window.name`. Do not use `window.top.location`, `window.parent.location`, `window.open`, `target="_top"`, `target="_parent"`, or `target="_blank"` for internal auth pages.',
+    snippet: clip(escapedNav[0]),
+  };
+}
+
+function firstIndexOf(source: string, patterns: RegExp[]): number {
+  let first = -1;
+  for (const pattern of patterns) {
+    const m = pattern.exec(source);
+    if (m && (first < 0 || m.index < first)) first = m.index;
+  }
+  return first;
+}
+
+function functionBodyFor(source: string, name: string): string | null {
+  const re = new RegExp(
+    `function\\s+${escapeRe(name)}\\s*\\([^)]*\\)\\s*\\{`,
+    'i',
+  );
+  const match = re.exec(source);
+  if (!match) return null;
+  return balancedBodyFrom(source, match.index + match[0].length - 1);
+}
+
+function objectMethodBodyFor(source: string, name: string): string | null {
+  const re = new RegExp(
+    `${escapeRe(name)}\\s*:\\s*function\\s*\\([^)]*\\)\\s*\\{`,
+    'i',
+  );
+  const match = re.exec(source);
+  if (!match) return null;
+  return balancedBodyFrom(source, match.index + match[0].length - 1);
+}
+
+function balancedBodyFrom(source: string, openBraceIndex: number): string | null {
+  let depth = 0;
+  for (let i = openBraceIndex; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '{') depth += 1;
+    if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(openBraceIndex + 1, i);
+    }
+  }
   return null;
 }
 

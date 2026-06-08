@@ -299,8 +299,12 @@ describe('buildApiProjectContext', () => {
     expect(context).toContain('visible state changes actually happen');
     expect(context).toContain('toast-only fake actions');
     expect(context).toContain('login.html must load or define its submit handler');
-    expect(context).toContain('auth persistence must catch storage errors');
-    expect(context).toContain('fallback such as URL `?auth=1` or `window.name`');
+    expect(context).toContain('the submit handler must call event.preventDefault() or return false');
+    expect(context).toContain('demo auth must set `window.name` before same-frame navigation');
+    expect(context).toContain('Protected pages must check `window.name` before reading localStorage/sessionStorage');
+    expect(context).toContain('Do not use URL query/hash fallbacks such as `?auth=1`');
+    expect(context).toContain('srcDoc previews strip query/hash during file navigation');
+    expect(context).toContain('Do not use window.top/window.parent/window.open/target=_blank');
     expect(context).toContain('preserve unrelated markup, styles, scripts, and layout');
     expect(context).toContain('Files: index.html, login.html');
     expect(context).toContain('Active file: index.html');

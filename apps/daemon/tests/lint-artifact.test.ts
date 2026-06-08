@@ -1378,6 +1378,127 @@ describe('auth storage fallback', () => {
     expect(findings.find((f) => f.id === 'auth-storage-fallback')).toBeUndefined();
   });
 
+  it('allows auth storage with unconditional window.name plus catch fallback', () => {
+    const html = `
+      <script>
+        function persistAuth() {
+          try {
+            localStorage.setItem('auth', '1');
+            window.name = 'auth';
+          } catch(_) {
+            window.name = 'auth';
+          }
+        }
+        function redirect() {
+          window.location.replace('index.html');
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'auth-storage-fallback')).toBeUndefined();
+  });
+
+  it('flags auth guards that check window.name only inside catch', () => {
+    const js = `
+      var AUTH_KEY = 'llm_platform_auth';
+      window.Auth = {
+        isAuthenticated: function() {
+          try {
+            return localStorage.getItem(AUTH_KEY) === '1' ||
+                   sessionStorage.getItem(AUTH_KEY) === '1';
+          } catch(e) {
+            return window.name === AUTH_KEY ||
+                   new URLSearchParams(window.location.search).get('auth') === '1';
+          }
+        },
+        guard: function() {
+          if (!this.isAuthenticated()) window.location.href = 'login.html?redirect=index.html';
+        }
+      };
+    `;
+    const findings = lintArtifact(js);
+    const hit = requiredFinding(findings, 'auth-guard-window-name-order');
+    expect(hit.severity).toBe('P0');
+    expect(hit.message).toContain('catch');
+  });
+
+  it('flags auth guards that return storage state before checking window.name', () => {
+    const js = `
+      function isAuthenticated() {
+        try {
+          if (localStorage.getItem('auth') === '1') return true;
+        } catch (_) {}
+        return window.name === 'auth';
+      }
+    `;
+    const findings = lintArtifact(js);
+    const hit = requiredFinding(findings, 'auth-guard-window-name-order');
+    expect(hit.severity).toBe('P0');
+    expect(hit.message).toContain('before checking `window.name`');
+  });
+
+  it('allows auth guards that check window.name before storage', () => {
+    const js = `
+      var AUTH_KEY = 'llm_platform_auth';
+      function isAuthenticated() {
+        if (window.name === AUTH_KEY) return true;
+        try { if (localStorage.getItem(AUTH_KEY) === '1') return true; } catch(_) {}
+        try { if (sessionStorage.getItem(AUTH_KEY) === '1') return true; } catch(_) {}
+        return false;
+      }
+    `;
+    const findings = lintArtifact(js);
+    expect(findings.find((f) => f.id === 'auth-guard-window-name-order')).toBeUndefined();
+  });
+
+  it('flags query-parameter auth redirects because srcDoc file switches strip queries', () => {
+    const html = `
+      <script>
+        function handleLogin() {
+          window.name = 'auth';
+          window.location.href = 'index.html?auth=1';
+        }
+        function isAuthenticated() {
+          return new URLSearchParams(window.location.search).get('auth') === '1';
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'auth-query-fallback');
+    expect(hit.severity).toBe('P0');
+    expect(hit.message).toContain('strip query');
+  });
+
+  it('flags auth redirects that escape the preview iframe', () => {
+    const html = `
+      <script>
+        function handleLogin(event) {
+          event.preventDefault();
+          window.name = 'auth';
+          window.top.location.href = 'index.html';
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    const hit = requiredFinding(findings, 'auth-escaping-navigation');
+    expect(hit.severity).toBe('P0');
+    expect(hit.message).toContain('same-frame');
+  });
+
+  it('allows same-frame auth redirects', () => {
+    const html = `
+      <script>
+        function handleLogin(event) {
+          event.preventDefault();
+          window.name = 'auth';
+          location.replace('index.html');
+        }
+      </script>
+    `;
+    const findings = lintArtifact(html);
+    expect(findings.find((f) => f.id === 'auth-escaping-navigation')).toBeUndefined();
+  });
+
   it('does not flag non-auth localStorage usage without html navigation', () => {
     const html = `
       <script>

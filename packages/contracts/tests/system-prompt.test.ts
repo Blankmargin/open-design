@@ -166,13 +166,33 @@ describe('composeSystemPrompt', () => {
       metadata: { kind: 'prototype', fidelity: 'production' } as any,
     });
 
+    expect(prompt).toContain('**demo-auth rule**');
+    expect(prompt).toContain('prototype login/auth screens are for clickable demos');
+    expect(prompt).toContain('do NOT implement real backend login, OAuth, cookies');
+    expect(prompt).toContain('Use a mock front-end-only flow');
+    expect(prompt).toContain('accepts any non-empty email/username + password');
+    expect(prompt).toContain('Do NOT create fixed credential arrays or whitelist checks');
+    expect(prompt).toContain('`VALID_CREDENTIALS`');
+    expect(prompt).toContain('`admin/admin123`');
     expect(prompt).toContain('**auth-flow runnable rule**');
     expect(prompt).toContain('login/auth is only complete when it works across files');
     expect(prompt).toContain('real `handleLogin(event)`');
+    expect(prompt).toContain('equivalent mock handler');
+    expect(prompt).toContain('calls `event.preventDefault()`');
+    expect(prompt).toContain('Every page that calls a shared auth function must load that shared auth script first');
+    expect(prompt).toContain('`login.html` MUST include `<script src="js/auth.js"></script>` before its inline submit handler');
+    expect(prompt).toContain('Do NOT `return` after writing `localStorage` or `sessionStorage`');
     expect(prompt).toContain('polyfill `localStorage` / `sessionStorage` in memory');
     expect(prompt).toContain('data is lost when navigating between HTML files');
     expect(prompt).toContain('`window.name` unconditionally as the primary cross-page mechanism');
     expect(prompt).toContain('Do NOT put the `window.name` write inside a `catch` block');
+    expect(prompt).toContain('check `window.name` first on every guard call');
+    expect(prompt).toContain('before any `localStorage` or `sessionStorage` read');
+    expect(prompt).toContain('Do NOT put `window.name` checks only inside `catch`');
+    expect(prompt).toContain('Do NOT rely on `?auth=1`, `?redirect=...`');
+    expect(prompt).toContain('Open Design srcDoc previews strip query/hash during file navigation');
+    expect(prompt).toContain('navigate in the same frame to a plain file path');
+    expect(prompt).toContain('Do NOT use `window.top.location`, `window.parent.location`, `window.open`');
   });
 
   it('requires visible interactive controls to be runnable, not decorative', () => {
